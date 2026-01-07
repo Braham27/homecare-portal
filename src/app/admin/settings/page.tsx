@@ -120,6 +120,25 @@ export default function SettingsPage() {
       ...prev,
       billing: {
         ...prev.billing,
+        [name]: checked,
+      },
+    }));
+    setSaved(false);
+  };
+
+  const handleNotificationChange = (name: string, checked: boolean) => {
+    setSettings((prev) => ({
+      ...prev,
+      notifications: {
+        ...prev.notifications,
+        [name]: checked,
+      },
+    }));
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
     try {
       const response = await fetch("/api/admin/settings", {
         method: "PUT",
@@ -149,26 +168,7 @@ export default function SettingsPage() {
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
-  }nst handleNotificationChange = (name: string, checked: boolean) => {
-    setSettings((prev) => ({
-      ...prev,
-      notifications: {
-        ...prev.notifications,
-        [name]: checked,
-      },
-    }));
-    setSaved(false);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    // In production, this would save to the database
-    // For now, we'll just simulate a save
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-  };
+  }
 
   return (
     <div className="space-y-6">
