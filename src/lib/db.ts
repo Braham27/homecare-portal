@@ -8,7 +8,10 @@ let pool: pg.Pool | null = null;
 let adapter: PrismaPg | null = null;
 
 try {
-  pool = new pg.Pool({ connectionString });
+  pool = new pg.Pool({ 
+    connectionString,
+    ssl: connectionString.includes('sslmode=require') ? { rejectUnauthorized: false } : false
+  });
   adapter = new PrismaPg(pool);
 } catch (error) {
   console.error('Failed to initialize database pool:', error);
