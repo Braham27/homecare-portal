@@ -15,6 +15,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AddVisitDialog } from "@/components/admin/AddVisitDialog";
 
 interface Visit {
   id: string;
@@ -55,6 +56,7 @@ export default function SchedulingPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<"day" | "week">("week");
+  const [showAddVisitDialog, setShowAddVisitDialog] = useState(false);
 
   // Build caregiver list and color mapping from visits
   const caregiverColorMap = new Map<string, string>();
@@ -167,7 +169,7 @@ export default function SchedulingPage() {
             <Filter className="mr-2 h-4 w-4" />
             Filter
           </Button>
-          <Button>
+          <Button onClick={() => setShowAddVisitDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Add Visit
           </Button>
@@ -384,6 +386,12 @@ export default function SchedulingPage() {
           )}
         </CardContent>
       </Card>
+
+      <AddVisitDialog
+        open={showAddVisitDialog}
+        onOpenChange={setShowAddVisitDialog}
+        onVisitAdded={fetchVisits}
+      />
     </div>
   );
 }
