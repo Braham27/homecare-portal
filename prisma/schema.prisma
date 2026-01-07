@@ -1,0 +1,950 @@
+// Prisma Schema for Home Care Agency Portal
+// HIPAA-compliant data model with comprehensive audit logging
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// AUTHENTICATION & USER MANAGEMENT
+// ============================================
+
+enum UserRole {
+  ADMIN
+  SCHEDULER
+  BILLING_STAFF
+  HR_STAFF
+  CAREGIVER
+  NURSE
+  CLIENT
+  FAMILY_MEMBER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+  ONBOARDING
+}
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique
+  emailVerified     DateTime?
+  passwordHash      String
+  firstName         String
+  lastName          String
+  phone             String?
+  role              UserRole   @default(CLIENT)
+  status            UserStatus @default(PENDING)
+  mfaEnabled        Boolean    @default(false)
+  mfaSecret         String?
+  lastLoginAt       DateTime?
+  failedLoginCount  Int        @default(0)
+  lockedUntil       DateTime?
+  passwordChangedAt DateTime   @default(now())
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  // Relationships
+  accounts       Account[]
+  sessions       Session[]
+  employee       Employee?
+  client         Client?
+  familyMember   FamilyMember?
+  auditLogs      AuditLog[]
+  sentMessages   Message[]    @relation("SentMessages")
+  receivedMessages Message[]  @relation("ReceivedMessages")
+  notifications  Notification[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// EMPLOYEE MANAGEMENT
+// ============================================
+
+enum EmployeeType {
+  CNA
+  HHA
+  RN
+  LPN
+  COMPANION
+  HOMEMAKER
+  PT
+  OT
+  OFFICE_STAFF
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+  ON_LEAVE
+}
+
+model Employee {
+  id                String           @id @default(cuid())
+  userId            String           @unique
+  employeeNumber    String           @unique
+  type              EmployeeType
+  hireDate          DateTime
+  terminationDate   DateTime?
+  status            EmploymentStatus @default(ACTIVE)
+  hourlyRate        Decimal          @db.Decimal(10, 2)
+  overtimeRate      Decimal?         @db.Decimal(10, 2)
+  address           String
+  city              String
+  state             String
+  zipCode           String
+  dateOfBirth       DateTime
+  ssn               String?          // Encrypted
+  emergencyContact  String?
+  emergencyPhone    String?
+  notes             String?          @db.Text
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relationships
+  user              User             @relation(fields: [userId], references: [id])
+  documents         EmployeeDocument[]
+  credentials       EmployeeCredential[]
+  availability      EmployeeAvailability[]
+  trainings         EmployeeTraining[]
+  assignments       CaregiverAssignment[]
+  visits            Visit[]
+  timeEntries       TimeEntry[]
+  payrollRecords    PayrollRecord[]
+
+  @@index([employeeNumber])
+  @@index([status])
+}
+
+model EmployeeDocument {
+  id           String   @id @default(cuid())
+  employeeId   String
+  documentType String
+  fileName     String
+  fileUrl      String
+  uploadedAt   DateTime @default(now())
+  expiresAt    DateTime?
+  verified     Boolean  @default(false)
+  verifiedBy   String?
+  verifiedAt   DateTime?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([expiresAt])
+}
+
+model EmployeeCredential {
+  id              String    @id @default(cuid())
+  employeeId      String
+  credentialType  String
+  credentialNumber String
+  issuingAuthority String
+  issueDate       DateTime
+  expirationDate  DateTime
+  verified        Boolean   @default(false)
+  verifiedAt      DateTime?
+  documentUrl     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([expirationDate])
+}
+
+model EmployeeAvailability {
+  id          String   @id @default(cuid())
+  employeeId  String
+  dayOfWeek   Int      // 0-6 (Sunday-Saturday)
+  startTime   String   // HH:MM format
+  endTime     String   // HH:MM format
+  isAvailable Boolean  @default(true)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+}
+
+model EmployeeTraining {
+  id            String    @id @default(cuid())
+  employeeId    String
+  trainingId    String
+  assignedAt    DateTime  @default(now())
+  dueDate       DateTime?
+  completedAt   DateTime?
+  score         Int?
+  certificateUrl String?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  training Training @relation(fields: [trainingId], references: [id])
+
+  @@index([employeeId])
+  @@index([completedAt])
+}
+
+model Training {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  contentUrl  String?
+  duration    Int?     // in minutes
+  isRequired  Boolean  @default(false)
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employees EmployeeTraining[]
+}
+
+// ============================================
+// CLIENT MANAGEMENT
+// ============================================
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_ASSESSMENT
+  DISCHARGED
+  ON_HOLD
+}
+
+enum PayerType {
+  PRIVATE_PAY
+  MEDICAID
+  MEDICARE
+  INSURANCE
+  MIXED
+}
+
+model Client {
+  id                  String       @id @default(cuid())
+  userId              String       @unique
+  clientNumber        String       @unique
+  status              ClientStatus @default(PENDING_ASSESSMENT)
+  dateOfBirth         DateTime
+  ssn                 String?      // Encrypted
+  address             String
+  city                String
+  state               String
+  zipCode             String
+  latitude            Float?
+  longitude           Float?
+  primaryPhone        String
+  secondaryPhone      String?
+  emergencyContact    String
+  emergencyPhone      String
+  emergencyRelation   String
+  primaryDiagnosis    String?      @db.Text
+  allergies           String?      @db.Text
+  medications         String?      @db.Text
+  specialInstructions String?      @db.Text
+  physicianName       String?
+  physicianPhone      String?
+  referralSource      String?
+  payerType           PayerType    @default(PRIVATE_PAY)
+  isPremium           Boolean      @default(false)
+  premiumStartDate    DateTime?
+  admissionDate       DateTime?
+  dischargeDate       DateTime?
+  dischargeReason     String?
+  notes               String?      @db.Text
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  // Relationships
+  user              User               @relation(fields: [userId], references: [id])
+  carePlan          CarePlan?
+  familyMembers     FamilyMember[]
+  assignments       CaregiverAssignment[]
+  visits            Visit[]
+  invoices          Invoice[]
+  insuranceInfo     ClientInsurance[]
+  documents         ClientDocument[]
+  authorizations    ServiceAuthorization[]
+
+  @@index([clientNumber])
+  @@index([status])
+}
+
+model FamilyMember {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  clientId     String
+  relationship String
+  isPrimary    Boolean  @default(false)
+  canViewNotes Boolean  @default(true)
+  canViewBilling Boolean @default(false)
+  canSchedule  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id])
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+}
+
+model ClientInsurance {
+  id              String   @id @default(cuid())
+  clientId        String
+  payerName       String
+  payerType       PayerType
+  policyNumber    String
+  groupNumber     String?
+  subscriberName  String
+  subscriberId    String?
+  effectiveDate   DateTime
+  terminationDate DateTime?
+  isPrimary       Boolean  @default(true)
+  verified        Boolean  @default(false)
+  verifiedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+}
+
+model ClientDocument {
+  id           String   @id @default(cuid())
+  clientId     String
+  documentType String
+  title        String
+  fileName     String
+  fileUrl      String
+  uploadedBy   String
+  uploadedAt   DateTime @default(now())
+  signedAt     DateTime?
+  signatureUrl String?
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+}
+
+// ============================================
+// CARE PLANS & SERVICE MANAGEMENT
+// ============================================
+
+model CarePlan {
+  id                String   @id @default(cuid())
+  clientId          String   @unique
+  assessmentDate    DateTime
+  assessorName      String
+  effectiveDate     DateTime
+  reviewDate        DateTime
+  goals             String?  @db.Text
+  adlNeeds          Json?    // Activities of Daily Living needs
+  iadlNeeds         Json?    // Instrumental ADLs
+  nursingNeeds      Json?
+  specialEquipment  String?  @db.Text
+  dietaryRequirements String? @db.Text
+  mobilityStatus    String?
+  cognitiveStatus   String?
+  communicationNeeds String? @db.Text
+  safetyRisks       String?  @db.Text
+  authorizedHours   Decimal? @db.Decimal(10, 2)
+  hoursPerWeek      Decimal? @db.Decimal(10, 2)
+  approvedBy        String?
+  approvedAt        DateTime?
+  status            String   @default("ACTIVE")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  client Client         @relation(fields: [clientId], references: [id])
+  tasks  CarePlanTask[]
+
+  @@index([clientId])
+}
+
+model CarePlanTask {
+  id          String   @id @default(cuid())
+  carePlanId  String
+  category    String   // Personal Care, Homemaking, Companionship, Nursing
+  taskName    String
+  description String?  @db.Text
+  frequency   String?  // Daily, Weekly, PRN
+  priority    Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  carePlan       CarePlan        @relation(fields: [carePlanId], references: [id])
+  visitTaskLogs  VisitTaskLog[]
+
+  @@index([carePlanId])
+}
+
+model ServiceAuthorization {
+  id                String    @id @default(cuid())
+  clientId          String
+  payerId           String?
+  authorizationNumber String
+  serviceType       String
+  authorizedUnits   Decimal   @db.Decimal(10, 2)
+  usedUnits         Decimal   @default(0) @db.Decimal(10, 2)
+  unitType          String    // Hours, Visits
+  startDate         DateTime
+  endDate           DateTime
+  status            String    @default("ACTIVE")
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+  @@index([endDate])
+}
+
+// ============================================
+// SCHEDULING & VISITS
+// ============================================
+
+enum VisitStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+model CaregiverAssignment {
+  id          String   @id @default(cuid())
+  clientId    String
+  employeeId  String
+  isPrimary   Boolean  @default(false)
+  startDate   DateTime
+  endDate     DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client   Client   @relation(fields: [clientId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([clientId])
+  @@index([employeeId])
+}
+
+model Visit {
+  id               String      @id @default(cuid())
+  clientId         String
+  employeeId       String?
+  scheduledDate    DateTime
+  scheduledStart   DateTime
+  scheduledEnd     DateTime
+  actualStart      DateTime?
+  actualEnd        DateTime?
+  status           VisitStatus @default(SCHEDULED)
+  serviceType      String
+  notes            String?     @db.Text
+  caregiverNotes   String?     @db.Text
+  clientCondition  String?
+  moodStatus       String?
+  vitalSigns       Json?
+  // EVV Data
+  clockInLatitude  Float?
+  clockInLongitude Float?
+  clockOutLatitude Float?
+  clockOutLongitude Float?
+  clockInMethod    String?     // GPS, Telephony, Manual
+  clockOutMethod   String?
+  evvVerified      Boolean     @default(false)
+  // Signatures
+  clientSignature  String?
+  signedAt         DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  client    Client         @relation(fields: [clientId], references: [id])
+  employee  Employee?      @relation(fields: [employeeId], references: [id])
+  taskLogs  VisitTaskLog[]
+
+  @@index([clientId])
+  @@index([employeeId])
+  @@index([scheduledDate])
+  @@index([status])
+}
+
+model VisitTaskLog {
+  id           String    @id @default(cuid())
+  visitId      String
+  carePlanTaskId String
+  completed    Boolean   @default(false)
+  completedAt  DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+
+  visit       Visit        @relation(fields: [visitId], references: [id])
+  carePlanTask CarePlanTask @relation(fields: [carePlanTaskId], references: [id])
+
+  @@index([visitId])
+}
+
+// ============================================
+// BILLING & PAYMENTS
+// ============================================
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  SENT
+  PAID
+  PARTIAL
+  OVERDUE
+  CANCELLED
+  SUBMITTED_TO_INSURANCE
+  INSURANCE_DENIED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  ACH
+  CHECK
+  CASH
+  MEDICAID
+  INSURANCE
+  OTHER
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  clientId        String
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  subtotal        Decimal       @db.Decimal(10, 2)
+  tax             Decimal       @default(0) @db.Decimal(10, 2)
+  discount        Decimal       @default(0) @db.Decimal(10, 2)
+  total           Decimal       @db.Decimal(10, 2)
+  amountPaid      Decimal       @default(0) @db.Decimal(10, 2)
+  amountDue       Decimal       @db.Decimal(10, 2)
+  status          InvoiceStatus @default(DRAFT)
+  dueDate         DateTime
+  sentAt          DateTime?
+  paidAt          DateTime?
+  payerType       PayerType
+  insuranceClaimId String?
+  notes           String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  client    Client         @relation(fields: [clientId], references: [id])
+  lineItems InvoiceLineItem[]
+  payments  Payment[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  serviceDate DateTime
+  quantity    Decimal  @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  total       Decimal  @db.Decimal(10, 2)
+  serviceCode String?
+  createdAt   DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  invoiceId       String
+  amount          Decimal       @db.Decimal(10, 2)
+  paymentMethod   PaymentMethod
+  transactionId   String?
+  stripePaymentId String?
+  checkNumber     String?
+  paidBy          String?
+  receivedAt      DateTime      @default(now())
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+}
+
+model ServiceRate {
+  id          String   @id @default(cuid())
+  serviceType String
+  payerType   PayerType
+  rate        Decimal  @db.Decimal(10, 2)
+  unitType    String   // Hourly, Per Visit
+  effectiveDate DateTime
+  endDate     DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([serviceType])
+  @@index([payerType])
+}
+
+// ============================================
+// PAYROLL
+// ============================================
+
+enum PayrollStatus {
+  PENDING
+  APPROVED
+  PROCESSED
+  PAID
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  employeeId  String
+  date        DateTime
+  hoursWorked Decimal  @db.Decimal(10, 2)
+  overtimeHours Decimal @default(0) @db.Decimal(10, 2)
+  mileage     Decimal? @db.Decimal(10, 2)
+  approved    Boolean  @default(false)
+  approvedBy  String?
+  approvedAt  DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([date])
+}
+
+model PayrollRecord {
+  id              String        @id @default(cuid())
+  employeeId      String
+  payPeriodStart  DateTime
+  payPeriodEnd    DateTime
+  regularHours    Decimal       @db.Decimal(10, 2)
+  overtimeHours   Decimal       @default(0) @db.Decimal(10, 2)
+  regularPay      Decimal       @db.Decimal(10, 2)
+  overtimePay     Decimal       @default(0) @db.Decimal(10, 2)
+  mileageReimbursement Decimal  @default(0) @db.Decimal(10, 2)
+  bonuses         Decimal       @default(0) @db.Decimal(10, 2)
+  deductions      Decimal       @default(0) @db.Decimal(10, 2)
+  grossPay        Decimal       @db.Decimal(10, 2)
+  taxes           Decimal       @default(0) @db.Decimal(10, 2)
+  netPay          Decimal       @db.Decimal(10, 2)
+  status          PayrollStatus @default(PENDING)
+  paidAt          DateTime?
+  checkNumber     String?
+  directDepositRef String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([payPeriodStart])
+}
+
+// ============================================
+// COMMUNICATION
+// ============================================
+
+enum MessagePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model Message {
+  id          String          @id @default(cuid())
+  senderId    String
+  recipientId String
+  subject     String?
+  content     String          @db.Text
+  priority    MessagePriority @default(NORMAL)
+  isRead      Boolean         @default(false)
+  readAt      DateTime?
+  isArchived  Boolean         @default(false)
+  parentId    String?         // For threading
+  createdAt   DateTime        @default(now())
+
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id])
+  recipient User     @relation("ReceivedMessages", fields: [recipientId], references: [id])
+  parent    Message? @relation("MessageThread", fields: [parentId], references: [id])
+  replies   Message[] @relation("MessageThread")
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([isRead])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String   @db.Text
+  link      String?
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+// ============================================
+// JOB APPLICATIONS
+// ============================================
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  INTERVIEW_SCHEDULED
+  INTERVIEWED
+  OFFER_EXTENDED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+model JobPosting {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @db.Text
+  requirements String  @db.Text
+  location    String
+  employmentType String // Full-time, Part-time, PRN
+  payRange    String?
+  isActive    Boolean  @default(true)
+  publishedAt DateTime?
+  closingDate DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  applications JobApplication[]
+}
+
+model JobApplication {
+  id               String            @id @default(cuid())
+  jobPostingId     String
+  firstName        String
+  lastName         String
+  email            String
+  phone            String
+  address          String?
+  city             String?
+  state            String?
+  zipCode          String?
+  resumeUrl        String?
+  coverLetterUrl   String?
+  certifications   Json?
+  yearsExperience  Int?
+  availability     Json?
+  canWorkWeekends  Boolean           @default(false)
+  hasTransportation Boolean          @default(false)
+  references       Json?
+  backgroundCheckConsent Boolean     @default(false)
+  consentSignature String?
+  consentSignedAt  DateTime?
+  status           ApplicationStatus @default(SUBMITTED)
+  notes            String?           @db.Text
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  jobPosting JobPosting @relation(fields: [jobPostingId], references: [id])
+
+  @@index([jobPostingId])
+  @@index([status])
+  @@index([email])
+}
+
+// ============================================
+// CMS - WEBSITE CONTENT
+// ============================================
+
+model Service {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  category    String   // Medical, Non-Medical
+  shortDescription String
+  description String   @db.Text
+  icon        String?
+  imageUrl    String?
+  tasks       Json?    // Array of included tasks
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model Testimonial {
+  id           String   @id @default(cuid())
+  clientName   String
+  relationship String?  // Client, Family Member, etc.
+  content      String   @db.Text
+  rating       Int?     // 1-5
+  imageUrl     String?
+  isApproved   Boolean  @default(false)
+  isFeatured   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model FAQ {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String   @db.Text
+  category  String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+}
+
+model Page {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  content   String   @db.Text
+  metaTitle String?
+  metaDescription String?
+  isPublished Boolean @default(false)
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+}
+
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String   @db.Text
+  serviceInterest String?
+  isRead    Boolean  @default(false)
+  respondedAt DateTime?
+  respondedBy String?
+  createdAt DateTime @default(now())
+
+  @@index([isRead])
+}
+
+model ServiceArea {
+  id        String   @id @default(cuid())
+  name      String
+  zipCodes  Json     // Array of zip codes
+  counties  Json?    // Array of county names
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// AUDIT & COMPLIANCE
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  phiAccessed Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  category  String?
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
