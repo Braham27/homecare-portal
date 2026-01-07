@@ -74,17 +74,17 @@ export async function GET(request: Request) {
     }
 
     // Convert array of settings to nested object structure
-    const settings = { ...DEFAULT_SETTINGS };
+    const settings: any = { ...DEFAULT_SETTINGS };
     
     settingsRecords.forEach((record) => {
       const [category, key] = record.key.split(".");
-      if (category && key && settings[category as keyof typeof settings]) {
+      if (category && key && settings[category]) {
         try {
           // Try to parse as JSON first (for boolean/number values)
-          settings[category as keyof typeof settings][key] = JSON.parse(record.value);
+          settings[category][key] = JSON.parse(record.value);
         } catch {
           // If not JSON, use as string
-          settings[category as keyof typeof settings][key] = record.value;
+          settings[category][key] = record.value;
         }
       }
     });
