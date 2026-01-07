@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-// GET - Fetch all employees with related data
+// GET - Fetch all employees with related data OR single employee by ID
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -12,8 +12,25 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
     const status = searchParams.get("status");
     const role = searchParams.get("role");
+
+    // If ID is provided, fetch single employee
+    if (id) {
+      const employee = await prisma.employee.findUnique({
+        where: { id },
+        include: {
+          user: true,
+        },
+      });
+
+      if (!employee) {
+        return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+      }
+
+      return NextResponse.json({ employee });
+    }
 
     const whereClause: Record<string, unknown> = {};
     
@@ -123,17 +140,106 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Employee creation logic would go here
-    // For now, return not implemented
-    await request.json(); // Consume the request body
-    return NextResponse.json(
-      { error: "Employee creation not yet implemented" },
-      { status: 501 }
-    );
+    const data = await request.json();
+    const bcrypt = require("bcryptjs");
+    const defaultPassword = await bcrypt.hash("Employee@123!", 12);
+
+    // Create user first
+    const user = await prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash: defaultPassword,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.type === "RN" || data.type === "LPN" ? "NURSE" : "CAREGIVER",
+        status: "ACTIVE",
+        emailVerified: new Date(),
+      },
+    });
+
+    // Create employee record
+    const employee = await prisma.employee.create({
+      data: {
+        userId: user.id,
+        employeeNumber: `EMP-${user.id.slice(0, 8).toUpperCase()}`,
+        type: data.type,
+        hireDate: new Date(data.hireDate),
+        dateOfBirth: new Date(data.dateOfBirth),
+        hourlyRate: parseFloat(data.hourlyRate),
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
+      },
+    });
+
+    return NextResponse.json({ employee }, { status: 201 });
   } catch (error) {
     console.error("Error creating employee:", error);
     return NextResponse.json(
       { error: "Failed to create employee" },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT - Update an employee
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || !["ADMIN", "HR_STAFF"].includes(session.user.role)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Employee ID required" }, { status: 400 });
+    }
+
+    const data = await request.json();
+
+    const employee = await prisma.employee.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!employee) {
+      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+
+    // Update user info
+    await prisma.user.update({
+      where: { id: employee.userId },
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+      },
+    });
+
+    // Update employee info
+    const updatedEmployee = await prisma.employee.update({
+      where: { id },
+      data: {
+        type: data.type,
+        hourlyRate: parseFloat(data.hourlyRate),
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    return NextResponse.json({ employee: updatedEmployee });
+  } catch (error) {
+    console.error("Error updating employee:", error);
+    return NextResponse.json(
+      { error: "Failed to update employee" },
       { status: 500 }
     );
   }

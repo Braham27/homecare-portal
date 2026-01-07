@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
-// GET - Fetch all clients with related data
+// GET - Fetch all clients with related data OR single client by ID
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,8 +13,25 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
     const status = searchParams.get("status");
     const search = searchParams.get("search");
+
+    // If ID is provided, fetch single client
+    if (id) {
+      const client = await prisma.client.findUnique({
+        where: { id },
+        include: {
+          user: true,
+        },
+      });
+
+      if (!client) {
+        return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      }
+
+      return NextResponse.json({ client });
+    }
 
     const whereClause: Record<string, unknown> = {};
     
@@ -223,6 +240,75 @@ export async function POST(request: NextRequest) {
     console.error("Error creating client:", error);
     return NextResponse.json(
       { error: "Failed to create client" },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT - Update a client
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || !["ADMIN", "HR_STAFF"].includes(session.user.role)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Client ID required" }, { status: 400 });
+    }
+
+    const data = await request.json();
+
+    const client = await prisma.client.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!client) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
+
+    // Update user info
+    await prisma.user.update({
+      where: { id: client.userId },
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+      },
+    });
+
+    // Update client info
+    const updatedClient = await prisma.client.update({
+      where: { id },
+      data: {
+        primaryPhone: data.primaryPhone,
+        secondaryPhone: data.secondaryPhone || null,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
+        emergencyContact: data.emergencyContact,
+        emergencyPhone: data.emergencyPhone,
+        emergencyRelation: data.emergencyRelation,
+        payerType: data.payerType,
+        primaryDiagnosis: data.primaryDiagnosis || null,
+        allergies: data.allergies || null,
+        medications: data.medications || null,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    return NextResponse.json({ client: updatedClient });
+  } catch (error) {
+    console.error("Error updating client:", error);
+    return NextResponse.json(
+      { error: "Failed to update client" },
       { status: 500 }
     );
   }
