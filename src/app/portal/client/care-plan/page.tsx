@@ -18,26 +18,63 @@ import {
   Users,
   Stethoscope,
 } from "lucide-react";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
 
-// Mock data - would come from API
-const carePlan = {
-  clientName: "Mary Johnson",
-  startDate: "2025-12-01",
-  lastReview: "2026-01-01",
-  nextReview: "2026-04-01",
-  careCoordinator: "Sarah Johnson, RN",
-  primaryCaregiver: "Jane Smith",
-  status: "Active",
-};
+async function getCarePlanData(clientId: string) {
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      user: true,
+      carePlan: true,
+      careTeam: {
+        include: {
+          employee: {
+            include: { user: true },
+          },
+        },
+      },
+    },
+  });
 
-const careGoals = [
+  if (!client) return null;
+
+  // Get primary caregiver
+  const primaryCaregiver = client.careTeam.find((ct) => ct.isPrimary)?.employee;
+
+  return {
+    carePlan: {
+      clientName: `${client.user.firstName} ${client.user.lastName}`,
+      startDate: client.startDate?.toISOString().split("T")[0] || "N/A",
+      lastReview: client.carePlan?.updatedAt?.toISOString().split("T")[0] || "N/A",
+      nextReview: "Quarterly Review",
+      careCoordinator: "Care Coordinator",
+      primaryCaregiver: primaryCaregiver ? `${primaryCaregiver.user.firstName} ${primaryCaregiver.user.lastName}` : "Not assigned",
+      status: client.status,
+    },
+    careGoals: client.carePlan?.goals ? JSON.parse(JSON.stringify(client.carePlan.goals)) : [],
+    dailyRoutine: client.carePlan?.routines ? JSON.parse(JSON.stringify(client.carePlan.routines)) : [],
+    medications: client.medications ? JSON.parse(client.medications) : [],
+    allergies: client.allergies || "None known",
+    primaryDiagnosis: client.primaryDiagnosis || "Not specified",
+    emergencyContact: client.emergencyContact,
+    emergencyPhone: client.emergencyPhone,
+    emergencyRelation: client.emergencyRelation,
+    primaryCaregiverData: primaryCaregiver,
+  };
+}
+
+// Default data for display
+const defaultCareGoals = [
   {
     id: "1",
     category: "Mobility",
-    goal: "Increase walking distance to 100 feet with walker",
+    goal: "Maintain safe mobility and reduce fall risk",
     progress: 75,
     status: "On Track",
-    target: "March 2026",
+    target: "Ongoing",
     tasks: [
       { task: "Daily assisted walks", completed: true },
       { task: "Strength exercises 3x/week", completed: true },
@@ -47,7 +84,7 @@ const careGoals = [
   {
     id: "2",
     category: "Nutrition",
-    goal: "Maintain healthy weight of 135-140 lbs",
+    goal: "Maintain healthy diet and hydration",
     progress: 90,
     status: "Achieved",
     target: "Ongoing",
@@ -59,19 +96,6 @@ const careGoals = [
   },
   {
     id: "3",
-    category: "Social Engagement",
-    goal: "Participate in 3 social activities per week",
-    progress: 60,
-    status: "Needs Attention",
-    target: "February 2026",
-    tasks: [
-      { task: "Weekly family video calls", completed: true },
-      { task: "Senior center activities", completed: false },
-      { task: "Book club participation", completed: true },
-    ],
-  },
-  {
-    id: "4",
     category: "Medication Management",
     goal: "100% medication adherence",
     progress: 100,
@@ -85,54 +109,60 @@ const careGoals = [
   },
 ];
 
-const dailyRoutine = [
-  { time: "7:30 AM", activity: "Wake up, morning hygiene", caregiver: "Jane Smith" },
-  { time: "8:00 AM", activity: "Breakfast and medications", caregiver: "Jane Smith" },
-  { time: "9:00 AM", activity: "Light exercises and stretching", caregiver: "Jane Smith" },
+const defaultDailyRoutine = [
+  { time: "7:30 AM", activity: "Wake up, morning hygiene", caregiver: "Caregiver" },
+  { time: "8:00 AM", activity: "Breakfast and medications", caregiver: "Caregiver" },
+  { time: "9:00 AM", activity: "Light exercises and stretching", caregiver: "Caregiver" },
   { time: "10:00 AM", activity: "Personal activities, reading", caregiver: "Independent" },
-  { time: "12:00 PM", activity: "Lunch preparation and meal", caregiver: "Jane Smith" },
-  { time: "1:00 PM", activity: "Assisted walk outdoors", caregiver: "Jane Smith" },
+  { time: "12:00 PM", activity: "Lunch preparation and meal", caregiver: "Caregiver" },
   { time: "2:00 PM", activity: "Rest period", caregiver: "Independent" },
-  { time: "3:00 PM", activity: "Social activities or hobbies", caregiver: "Independent" },
-  { time: "5:00 PM", activity: "Dinner preparation", caregiver: "Family/Jane Smith" },
-  { time: "6:00 PM", activity: "Evening medications", caregiver: "Family" },
+  { time: "5:00 PM", activity: "Dinner preparation", caregiver: "Family/Caregiver" },
   { time: "8:00 PM", activity: "Evening hygiene, prepare for bed", caregiver: "Family" },
 ];
 
-const medications = [
+const defaultMedications = [
   {
-    name: "Lisinopril 10mg",
-    purpose: "Blood pressure",
-    schedule: "Once daily - Morning",
-    prescriber: "Dr. Michael Chen",
-  },
-  {
-    name: "Metformin 500mg",
-    purpose: "Diabetes",
-    schedule: "Twice daily - With meals",
-    prescriber: "Dr. Michael Chen",
-  },
-  {
-    name: "Vitamin D 1000 IU",
-    purpose: "Bone health",
-    schedule: "Once daily - Morning",
-    prescriber: "Dr. Michael Chen",
-  },
-  {
-    name: "Aspirin 81mg",
-    purpose: "Heart health",
-    schedule: "Once daily - Morning",
-    prescriber: "Dr. Michael Chen",
+    name: "As prescribed by physician",
+    purpose: "See care plan for details",
+    schedule: "As directed",
+    prescriber: "Primary Physician",
   },
 ];
 
 const healthConditions = [
-  { condition: "Hypertension", status: "Controlled", since: "2020" },
-  { condition: "Type 2 Diabetes", status: "Managed", since: "2018" },
-  { condition: "Osteoarthritis", status: "Managed", since: "2015" },
+  { condition: "As noted in medical records", status: "Managed", since: "On file" },
 ];
 
-export default function CarePlanPage() {
+export default async function CarePlanPage() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  const client = await prisma.client.findFirst({
+    where: { userId: session.user.id },
+  });
+
+  if (!client) {
+    redirect("/unauthorized");
+  }
+
+  const carePlanData = await getCarePlanData(client.id);
+  
+  const carePlan = carePlanData?.carePlan || {
+    clientName: `${session.user.firstName} ${session.user.lastName}`,
+    startDate: "N/A",
+    lastReview: "N/A",
+    nextReview: "Quarterly Review",
+    careCoordinator: "Care Coordinator",
+    primaryCaregiver: "Not assigned",
+    status: "ACTIVE",
+  };
+
+  const careGoals = carePlanData?.careGoals?.length ? carePlanData.careGoals : defaultCareGoals;
+  const dailyRoutine = carePlanData?.dailyRoutine?.length ? carePlanData.dailyRoutine : defaultDailyRoutine;
+  const medications = carePlanData?.medications?.length ? carePlanData.medications : defaultMedications;
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}

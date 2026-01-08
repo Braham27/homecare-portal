@@ -11,55 +11,145 @@ import {
   Play,
 } from "lucide-react";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
 
-// Mock data
-const todaysVisits = [
-  {
-    id: "1",
-    client: "Eleanor Johnson",
-    address: "123 Maple St, Springfield",
-    time: "9:00 AM - 1:00 PM",
-    serviceType: "Personal Care",
-    status: "completed",
-    clockInTime: "8:58 AM",
-    clockOutTime: "1:02 PM",
-  },
-  {
-    id: "2",
-    client: "Robert Williams",
-    address: "456 Oak Ave, Springfield",
-    time: "2:00 PM - 6:00 PM",
-    serviceType: "Personal Care",
-    status: "upcoming",
-    tasks: ["Bathing assistance", "Medication reminder", "Meal preparation", "Light housekeeping"],
-  },
-];
+async function getEmployeeDashboardData(employeeId: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
-const weeklyStats = {
-  hoursWorked: 28,
-  hoursScheduled: 40,
-  visitsCompleted: 7,
-  pendingDocumentation: 1,
-};
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
 
-const pendingTasks = [
-  {
-    id: "1",
-    type: "documentation",
-    description: "Complete care notes for Eleanor Johnson (Jan 3)",
-    dueDate: "Today",
-    priority: "high",
-  },
-  {
-    id: "2",
-    type: "training",
-    description: "Annual HIPAA compliance training due",
-    dueDate: "Jan 15, 2026",
-    priority: "medium",
-  },
-];
+  // Get today's visits
+  const todaysVisits = await prisma.visit.findMany({
+    where: {
+      employeeId,
+      scheduledStart: {
+        gte: today,
+        lt: tomorrow,
+      },
+    },
+    include: {
+      client: {
+        include: {
+          user: true,
+        },
+      },
+      service: true,
+    },
+    orderBy: { scheduledStart: "asc" },
+  });
 
-export default function EmployeeDashboard() {
+  // Get this week's visits for stats
+  const weeklyVisits = await prisma.visit.findMany({
+    where: {
+      employeeId,
+      scheduledStart: {
+        gte: startOfWeek,
+      },
+    },
+    select: {
+      status: true,
+      actualStart: true,
+      actualEnd: true,
+    },
+  });
+
+  const visitsCompleted = weeklyVisits.filter((v) => v.status === "COMPLETED").length;
+  const hoursWorked = weeklyVisits
+    .filter((v) => v.actualStart && v.actualEnd)
+    .reduce((sum, v) => {
+      if (v.actualStart && v.actualEnd) {
+        return sum + (new Date(v.actualEnd).getTime() - new Date(v.actualStart).getTime()) / (1000 * 60 * 60);
+      }
+      return sum;
+    }, 0);
+
+  // Get pending documentation
+  const pendingDocumentation = await prisma.visit.count({
+    where: {
+      employeeId,
+      status: "COMPLETED",
+      notes: null,
+    },
+  });
+
+  // Get pending timesheets
+  const pendingTimesheets = await prisma.timesheet.count({
+    where: {
+      employeeId,
+      status: "PENDING",
+    },
+  });
+
+  return {
+    todaysVisits: todaysVisits.map((visit) => ({
+      id: visit.id,
+      client: `${visit.client.user.firstName} ${visit.client.user.lastName}`,
+      address: `${visit.client.address}, ${visit.client.city}`,
+      time: `${new Date(visit.scheduledStart).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} - ${new Date(visit.scheduledEnd).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
+      serviceType: visit.service?.name || "Personal Care",
+      status: visit.status === "COMPLETED" ? "completed" : "upcoming",
+      clockInTime: visit.actualStart ? new Date(visit.actualStart).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : undefined,
+      clockOutTime: visit.actualEnd ? new Date(visit.actualEnd).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : undefined,
+      tasks: ["Bathing assistance", "Medication reminder", "Meal preparation"],
+      clientId: visit.clientId,
+    })),
+    weeklyStats: {
+      hoursWorked: Math.round(hoursWorked),
+      hoursScheduled: 40,
+      visitsCompleted,
+      pendingDocumentation,
+    },
+    pendingTasks: [
+      ...(pendingDocumentation > 0
+        ? [
+            {
+              id: "doc-1",
+              type: "documentation",
+              description: `Complete care notes for ${pendingDocumentation} visit(s)`,
+              dueDate: "Today",
+              priority: "high" as const,
+            },
+          ]
+        : []),
+      ...(pendingTimesheets > 0
+        ? [
+            {
+              id: "timesheet-1",
+              type: "timesheet",
+              description: `Submit ${pendingTimesheets} pending timesheet(s)`,
+              dueDate: "End of week",
+              priority: "medium" as const,
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
+export default async function EmployeeDashboard() {
+  const session = await getServerSession(authOptions);
+  
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  // Get employee record for the logged-in user
+  const employee = await prisma.employee.findFirst({
+    where: { userId: session.user.id },
+  });
+
+  if (!employee) {
+    redirect("/unauthorized");
+  }
+
+  const { todaysVisits, weeklyStats, pendingTasks } = await getEmployeeDashboardData(employee.id);
   const currentVisit = todaysVisits.find((v) => v.status === "upcoming");
 
   return (
@@ -187,7 +277,7 @@ export default function EmployeeDashboard() {
                   </Link>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`/portal/employee/clients/${currentVisit.id}`}>
+                  <Link href={`/portal/employee/clients/${currentVisit.clientId}`}>
                     View Care Plan
                   </Link>
                 </Button>

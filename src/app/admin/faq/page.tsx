@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,49 +19,14 @@ import {
   HelpCircle,
 } from "lucide-react";
 
-// Mock data for FAQs
-const initialFAQs = [
-  {
-    id: "1",
-    question: "What services do you offer?",
-    answer: "We offer both medical and non-medical home care services including personal care, companion care, skilled nursing, medication management, physical therapy, and more.",
-    category: "general",
-    isActive: true,
-    order: 1,
-  },
-  {
-    id: "2",
-    question: "How do I pay for services?",
-    answer: "We accept private pay, Medicaid, Medicare, and most major insurance plans. We can help you determine your coverage and payment options during your free consultation.",
-    category: "billing",
-    isActive: true,
-    order: 2,
-  },
-  {
-    id: "3",
-    question: "Are your caregivers trained and certified?",
-    answer: "Yes! All our caregivers undergo comprehensive background checks, training, and certification. Our nursing staff are fully licensed RNs and LPNs.",
-    category: "general",
-    isActive: true,
-    order: 3,
-  },
-  {
-    id: "4",
-    question: "Can I choose my caregiver?",
-    answer: "We carefully match caregivers with clients based on needs, personality, and preferences. If you're not satisfied with your caregiver, we'll work to find a better match.",
-    category: "services",
-    isActive: true,
-    order: 4,
-  },
-  {
-    id: "5",
-    question: "What if I need to cancel or reschedule a visit?",
-    answer: "We understand schedules change. Please notify us at least 24 hours in advance for cancellations or reschedules. Emergency situations are handled on a case-by-case basis.",
-    category: "services",
-    isActive: true,
-    order: 5,
-  },
-];
+interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  isActive: boolean;
+  order: number;
+}
 
 const categories = [
   { value: "general", label: "General" },
@@ -70,31 +35,81 @@ const categories = [
   { value: "caregivers", label: "Caregivers" },
 ];
 
-type FAQ = typeof initialFAQs[0];
-
 export default function FAQManagementPage() {
-  const [faqs, setFAQs] = useState(initialFAQs);
+  const [faqs, setFAQs] = useState<FAQ[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editingFAQ, setEditingFAQ] = useState<FAQ | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
 
-  const handleSave = (faq: FAQ) => {
-    if (editingFAQ && !isCreating) {
-      setFAQs((prev) => prev.map((f) => (f.id === faq.id ? faq : f)));
-    } else {
-      setFAQs((prev) => [
-        ...prev,
-        { ...faq, id: String(prev.length + 1), order: prev.length + 1 },
-      ]);
+  useEffect(() => {
+    async function fetchFAQs() {
+      try {
+        const response = await fetch("/api/faq");
+        if (response.ok) {
+          const data = await response.json();
+          const transformedFAQs = (data.faqs || []).map((faq: { id: string; question: string; answer: string; category: string; isActive: boolean }, index: number) => ({
+            id: faq.id,
+            question: faq.question,
+            answer: faq.answer,
+            category: faq.category?.toLowerCase() || "general",
+            isActive: faq.isActive !== false,
+            order: index + 1,
+          }));
+          setFAQs(transformedFAQs);
+        }
+      } catch (error) {
+        console.error("Failed to fetch FAQs:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchFAQs();
+  }, []);
+
+  const handleSave = async (faq: FAQ) => {
+    try {
+      if (editingFAQ && !isCreating) {
+        const response = await fetch(`/api/faq/${faq.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(faq),
+        });
+        if (response.ok) {
+          setFAQs((prev) => prev.map((f) => (f.id === faq.id ? faq : f)));
+        }
+      } else {
+        const response = await fetch("/api/faq", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(faq),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setFAQs((prev) => [
+            ...prev,
+            { ...faq, id: data.faq?.id || String(prev.length + 1), order: prev.length + 1 },
+          ]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to save FAQ:", error);
     }
     setEditingFAQ(null);
     setIsCreating(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this FAQ?")) {
-      setFAQs((prev) => prev.filter((f) => f.id !== id));
+      try {
+        const response = await fetch(`/api/faq/${id}`, { method: "DELETE" });
+        if (response.ok) {
+          setFAQs((prev) => prev.filter((f) => f.id !== id));
+        }
+      } catch (error) {
+        console.error("Failed to delete FAQ:", error);
+      }
     }
   };
 
@@ -107,6 +122,14 @@ export default function FAQManagementPage() {
   const filteredFAQs = faqs.filter(
     (faq) => filterCategory === "all" || faq.category === filterCategory
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-gray-500">Loading FAQs...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

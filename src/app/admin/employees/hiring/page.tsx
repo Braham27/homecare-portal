@@ -20,144 +20,70 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
+import { prisma } from "@/lib/db";
 
-// Mock data - would come from API
-const applicationStats = {
-  total: 45,
-  new: 12,
-  inReview: 18,
-  interviewed: 8,
-  offerMade: 4,
-  rejected: 3,
-};
+async function getHiringData() {
+  // Get job applications from database
+  const jobApplications = await prisma.jobApplication.findMany({
+    include: {
+      jobPosting: true,
+    },
+    orderBy: { appliedAt: "desc" },
+    take: 20,
+  });
 
-const applications = [
-  {
-    id: "APP-001",
-    applicantName: "Sarah Martinez",
-    position: "Certified Nursing Assistant",
-    appliedDate: "2026-01-05",
-    status: "new",
-    experience: "5 years",
-    email: "sarah.martinez@email.com",
-    phone: "(555) 234-5678",
-    location: "Springfield, IL",
-    certifications: ["CNA", "CPR", "First Aid"],
-    availability: "Full-time",
-  },
-  {
-    id: "APP-002",
-    applicantName: "Michael Thompson",
-    position: "Personal Care Aide",
-    appliedDate: "2026-01-04",
-    status: "in-review",
-    experience: "3 years",
-    email: "m.thompson@email.com",
-    phone: "(555) 345-6789",
-    location: "Springfield, IL",
-    certifications: ["CPR", "First Aid"],
-    availability: "Part-time",
-  },
-  {
-    id: "APP-003",
-    applicantName: "Jennifer Lee",
-    position: "Registered Nurse",
-    appliedDate: "2026-01-03",
-    status: "interviewed",
-    experience: "8 years",
-    email: "jennifer.lee@email.com",
-    phone: "(555) 456-7890",
-    location: "Springfield, IL",
-    certifications: ["RN License", "BLS", "ACLS"],
-    availability: "Full-time",
-  },
-  {
-    id: "APP-004",
-    applicantName: "David Chen",
-    position: "Companion Caregiver",
-    appliedDate: "2026-01-02",
-    status: "offer-made",
-    experience: "2 years",
-    email: "david.chen@email.com",
-    phone: "(555) 567-8901",
-    location: "Springfield, IL",
-    certifications: ["CPR"],
-    availability: "Part-time",
-  },
-  {
-    id: "APP-005",
-    applicantName: "Lisa Brown",
-    position: "Licensed Practical Nurse",
-    appliedDate: "2026-01-01",
-    status: "in-review",
-    experience: "6 years",
-    email: "lisa.brown@email.com",
-    phone: "(555) 678-9012",
-    location: "Springfield, IL",
-    certifications: ["LPN License", "IV Certification", "CPR"],
-    availability: "Full-time",
-  },
-];
+  // Get open job postings
+  const openPositions = await prisma.jobPosting.findMany({
+    where: { status: "OPEN" },
+  });
 
-const upcomingInterviews = [
-  {
-    id: "INT-001",
-    applicantName: "Jennifer Lee",
-    position: "Registered Nurse",
-    date: "2026-01-10",
-    time: "10:00 AM",
-    interviewer: "Sarah Johnson, RN - Care Coordinator",
-    type: "In-person",
-  },
-  {
-    id: "INT-002",
-    applicantName: "Michael Thompson",
-    position: "Personal Care Aide",
-    date: "2026-01-11",
-    time: "2:00 PM",
-    interviewer: "Robert Williams - HR Manager",
-    type: "Video call",
-  },
-];
+  // Calculate stats
+  const newApplications = jobApplications.filter((app) => app.status === "NEW").length;
+  const inReview = jobApplications.filter((app) => app.status === "REVIEWING").length;
+  const interviewed = jobApplications.filter((app) => app.status === "INTERVIEWED").length;
+  const offerMade = jobApplications.filter((app) => app.status === "OFFER_MADE").length;
+  const rejected = jobApplications.filter((app) => app.status === "REJECTED").length;
+  const hired = jobApplications.filter((app) => app.status === "HIRED").length;
 
-const hiringPipeline = [
-  {
-    stage: "Application Received",
-    count: 12,
-    color: "bg-blue-500",
-  },
-  {
-    stage: "Under Review",
-    count: 18,
-    color: "bg-purple-500",
-  },
-  {
-    stage: "Interview Scheduled",
-    count: 5,
-    color: "bg-amber-500",
-  },
-  {
-    stage: "Interviewed",
-    count: 3,
-    color: "bg-green-500",
-  },
-  {
-    stage: "Offer Made",
-    count: 4,
-    color: "bg-emerald-500",
-  },
-  {
-    stage: "Hired",
-    count: 7,
-    color: "bg-teal-500",
-  },
-];
+  return {
+    applicationStats: {
+      total: jobApplications.length,
+      new: newApplications,
+      inReview,
+      interviewed,
+      offerMade,
+      rejected,
+    },
+    applications: jobApplications.map((app) => ({
+      id: app.id,
+      applicantName: app.name,
+      position: app.jobPosting?.title || "General Application",
+      appliedDate: app.appliedAt.toISOString().split("T")[0],
+      status: app.status.toLowerCase().replace("_", "-"),
+      experience: app.experience || "Not specified",
+      email: app.email,
+      phone: app.phone || "Not provided",
+      location: "Springfield, IL",
+      certifications: [],
+      availability: "Full-time",
+    })),
+    hiringPipeline: [
+      { stage: "Application Received", count: newApplications, color: "bg-blue-500" },
+      { stage: "Under Review", count: inReview, color: "bg-purple-500" },
+      { stage: "Interviewed", count: interviewed, color: "bg-amber-500" },
+      { stage: "Offer Made", count: offerMade, color: "bg-green-500" },
+      { stage: "Hired", count: hired, color: "bg-teal-500" },
+    ],
+    openPositionsCount: openPositions.length,
+  };
+}
 
 const getStatusBadge = (status: string) => {
   switch (status) {
     case "new":
       return "bg-blue-100 text-blue-700";
     case "in-review":
+    case "reviewing":
       return "bg-purple-100 text-purple-700";
     case "interviewed":
       return "bg-amber-100 text-amber-700";
@@ -165,6 +91,8 @@ const getStatusBadge = (status: string) => {
       return "bg-green-100 text-green-700";
     case "rejected":
       return "bg-red-100 text-red-700";
+    case "hired":
+      return "bg-teal-100 text-teal-700";
     default:
       return "bg-gray-100 text-gray-700";
   }
@@ -175,6 +103,7 @@ const getStatusText = (status: string) => {
     case "new":
       return "New Application";
     case "in-review":
+    case "reviewing":
       return "Under Review";
     case "interviewed":
       return "Interviewed";
@@ -182,12 +111,15 @@ const getStatusText = (status: string) => {
       return "Offer Extended";
     case "rejected":
       return "Not Selected";
+    case "hired":
+      return "Hired";
     default:
       return status;
   }
 };
 
-export default function HiringPage() {
+export default async function HiringPage() {
+  const { applicationStats, applications, hiringPipeline, openPositionsCount } = await getHiringData();
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}

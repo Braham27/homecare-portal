@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,65 +19,109 @@ import {
   Globe,
 } from "lucide-react";
 
-// Mock data for services
-const initialServices = [
-  {
-    id: "1",
-    name: "Personal Care",
-    slug: "personal-care",
-    shortDescription: "Assistance with daily living activities",
-    description: "Our personal care services include assistance with bathing, grooming, dressing, and mobility. Our trained caregivers provide dignified, compassionate support.",
-    category: "medical",
-    isActive: true,
-    order: 1,
-  },
-  {
-    id: "2",
-    name: "Companion Care",
-    slug: "companion-care",
-    shortDescription: "Social interaction and emotional support",
-    description: "Combat loneliness and isolation with our companion care services. Our caregivers provide meaningful conversation, activities, and emotional support.",
-    category: "non-medical",
-    isActive: true,
-    order: 2,
-  },
-  {
-    id: "3",
-    name: "Skilled Nursing",
-    slug: "skilled-nursing",
-    shortDescription: "Professional medical care at home",
-    description: "Licensed nurses provide medical care including medication management, wound care, IV therapy, and chronic disease management.",
-    category: "medical",
-    isActive: true,
-    order: 3,
-  },
-];
-
-type Service = typeof initialServices[0];
+interface Service {
+  id: string;
+  name: string;
+  slug: string;
+  shortDescription: string;
+  description: string;
+  category: "medical" | "non-medical";
+  isActive: boolean;
+  order: number;
+}
 
 export default function CMSServicesPage() {
-  const [services, setServices] = useState(initialServices);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  const handleSave = (service: Service) => {
-    if (editingService) {
-      setServices((prev) =>
-        prev.map((s) => (s.id === service.id ? service : s))
-      );
-    } else {
-      setServices((prev) => [
-        ...prev,
-        { ...service, id: String(prev.length + 1), order: prev.length + 1 },
-      ]);
+  useEffect(() => {
+    async function fetchServices() {
+      try {
+        const response = await fetch("/api/admin/services");
+        if (response.ok) {
+          const data = await response.json();
+          // Transform API data to match component interface
+          const transformedServices = (data.services || []).map((s: { id: string; name: string; description: string; category: string; baseRate: number }, index: number) => ({
+            id: s.id,
+            name: s.name,
+            slug: s.name.toLowerCase().replace(/\s+/g, "-"),
+            shortDescription: s.description?.substring(0, 100) || "",
+            description: s.description || "",
+            category: s.category === "MEDICAL" ? "medical" : "non-medical",
+            isActive: true,
+            order: index + 1,
+          }));
+          setServices(transformedServices);
+        }
+      } catch (error) {
+        console.error("Failed to fetch services:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchServices();
+  }, []);
+
+  const handleSave = async (service: Service) => {
+    try {
+      if (editingService && !isCreating) {
+        // Update existing service
+        const response = await fetch(`/api/admin/services/${service.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: service.name,
+            description: service.description,
+            category: service.category === "medical" ? "MEDICAL" : "NON_MEDICAL",
+          }),
+        });
+        if (response.ok) {
+          setServices((prev) =>
+            prev.map((s) => (s.id === service.id ? service : s))
+          );
+        }
+      } else {
+        // Create new service
+        const response = await fetch("/api/admin/services", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: service.name,
+            description: service.description,
+            category: service.category === "medical" ? "MEDICAL" : "NON_MEDICAL",
+            baseRate: 50,
+            isActive: true,
+          }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setServices((prev) => [
+            ...prev,
+            { ...service, id: data.service.id, order: prev.length + 1 },
+          ]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to save service:", error);
     }
     setEditingService(null);
     setIsCreating(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this service?")) {
-      setServices((prev) => prev.filter((s) => s.id !== id));
+      try {
+        const response = await fetch(`/api/admin/services/${id}`, {
+          method: "DELETE",
+        });
+        if (response.ok) {
+          setServices((prev) => prev.filter((s) => s.id !== id));
+        }
+      } catch (error) {
+        console.error("Failed to delete service:", error);
+      }
     }
   };
 
@@ -86,6 +130,14 @@ export default function CMSServicesPage() {
       prev.map((s) => (s.id === id ? { ...s, isActive: !s.isActive } : s))
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-gray-500">Loading services...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -10,49 +10,58 @@ import {
   DollarSign,
 } from "lucide-react";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
 
-// Mock data
-const invoices = [
-  {
-    id: "INV-2026-001",
-    date: "2026-01-01",
-    dueDate: "2026-01-15",
-    amount: 450.00,
-    status: "pending",
-    period: "Dec 16 - Dec 31, 2025",
-  },
-  {
-    id: "INV-2025-024",
-    date: "2025-12-16",
-    dueDate: "2025-12-31",
-    amount: 675.00,
-    status: "paid",
-    paidDate: "2025-12-28",
-    period: "Dec 1 - Dec 15, 2025",
-  },
-  {
-    id: "INV-2025-023",
-    date: "2025-12-01",
-    dueDate: "2025-12-15",
-    amount: 600.00,
-    status: "paid",
-    paidDate: "2025-12-10",
-    period: "Nov 16 - Nov 30, 2025",
-  },
-];
+async function getBillingData(clientId: string) {
+  const invoices = await prisma.invoice.findMany({
+    where: { clientId },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
 
-const paymentMethods = [
-  {
-    id: "1",
-    type: "card",
-    brand: "Visa",
-    last4: "4242",
-    expiry: "12/27",
-    isDefault: true,
-  },
-];
+  return {
+    invoices: invoices.map((inv) => ({
+      id: inv.invoiceNumber,
+      date: inv.createdAt.toISOString().split("T")[0],
+      dueDate: inv.dueDate.toISOString().split("T")[0],
+      amount: Number(inv.total),
+      status: inv.status.toLowerCase(),
+      paidDate: inv.paidAt?.toISOString().split("T")[0],
+      period: `${inv.billingPeriodStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${inv.billingPeriodEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+    })),
+  };
+}
 
-export default function BillingPage() {
+export default async function BillingPage() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  const client = await prisma.client.findFirst({
+    where: { userId: session.user.id },
+  });
+
+  if (!client) {
+    redirect("/unauthorized");
+  }
+
+  const { invoices } = await getBillingData(client.id);
+
+  const paymentMethods = [
+    {
+      id: "1",
+      type: "card",
+      brand: "Visa",
+      last4: "4242",
+      expiry: "12/27",
+      isDefault: true,
+    },
+  ];
   const pendingAmount = invoices
     .filter((inv) => inv.status === "pending")
     .reduce((sum, inv) => sum + inv.amount, 0);

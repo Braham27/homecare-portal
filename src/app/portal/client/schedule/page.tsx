@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,49 +13,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Mock data
-const visits = [
-  {
-    id: "1",
-    date: "2026-01-05",
-    startTime: "9:00 AM",
-    endTime: "1:00 PM",
-    caregiver: "Jane Smith",
-    serviceType: "Personal Care",
-    status: "scheduled",
-    tasks: ["Bathing assistance", "Medication reminder", "Meal preparation", "Light housekeeping"],
-  },
-  {
-    id: "2",
-    date: "2026-01-07",
-    startTime: "9:00 AM",
-    endTime: "1:00 PM",
-    caregiver: "Jane Smith",
-    serviceType: "Personal Care",
-    status: "confirmed",
-    tasks: ["Bathing assistance", "Medication reminder", "Meal preparation"],
-  },
-  {
-    id: "3",
-    date: "2026-01-09",
-    startTime: "10:00 AM",
-    endTime: "2:00 PM",
-    caregiver: "Maria Garcia",
-    serviceType: "Companion Care",
-    status: "scheduled",
-    tasks: ["Companionship", "Reading", "Light exercise", "Meal preparation"],
-  },
-  {
-    id: "4",
-    date: "2026-01-12",
-    startTime: "9:00 AM",
-    endTime: "1:00 PM",
-    caregiver: "Jane Smith",
-    serviceType: "Personal Care",
-    status: "scheduled",
-    tasks: ["Bathing assistance", "Medication reminder", "Meal preparation", "Light housekeeping"],
-  },
-];
+interface Visit {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  caregiver: string;
+  serviceType: string;
+  status: string;
+  tasks: string[];
+}
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = [
@@ -64,9 +31,28 @@ const monthNames = [
 ];
 
 export default function SchedulePage() {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1)); // January 2026
-  const [selectedDate, setSelectedDate] = useState<string | null>("2026-01-05");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchVisits() {
+      try {
+        const response = await fetch("/api/clients/visits");
+        if (response.ok) {
+          const data = await response.json();
+          setVisits(data.visits || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch visits:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchVisits();
+  }, []);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -91,6 +77,7 @@ export default function SchedulePage() {
   };
 
   const selectedVisits = selectedDate ? getVisitsForDate(selectedDate) : [];
+  const todayString = new Date().toISOString().split("T")[0];
 
   const renderCalendarDays = () => {
     const days = [];
@@ -105,7 +92,7 @@ export default function SchedulePage() {
       const dateString = formatDateString(day);
       const dayVisits = getVisitsForDate(dateString);
       const isSelected = selectedDate === dateString;
-      const isToday = dateString === "2026-01-03"; // Mock "today"
+      const isToday = dateString === todayString;
 
       days.push(
         <button

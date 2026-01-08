@@ -12,58 +12,140 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
 
-// Mock data - would come from API
-const upcomingVisits = [
-  {
-    id: "1",
-    date: "2026-01-05",
-    time: "9:00 AM - 1:00 PM",
-    caregiver: "Jane Smith",
-    serviceType: "Personal Care",
-    status: "confirmed",
-  },
-  {
-    id: "2",
-    date: "2026-01-07",
-    time: "9:00 AM - 1:00 PM",
-    caregiver: "Jane Smith",
-    serviceType: "Personal Care",
-    status: "scheduled",
-  },
-  {
-    id: "3",
-    date: "2026-01-09",
-    time: "10:00 AM - 2:00 PM",
-    caregiver: "Maria Garcia",
-    serviceType: "Companion Care",
-    status: "scheduled",
-  },
-];
+async function getClientDashboardData(clientId: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-const recentNotes = [
-  {
-    id: "1",
-    date: "2026-01-03",
-    caregiver: "Jane Smith",
-    summary: "Client in good spirits. Assisted with bathing and breakfast. Took a short walk.",
-  },
-  {
-    id: "2",
-    date: "2026-01-01",
-    caregiver: "Jane Smith",
-    summary: "Medication reminder given. Light housekeeping completed. Prepared lunch.",
-  },
-];
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-const pendingInvoice = {
-  id: "INV-2026-001",
-  amount: 450.00,
-  dueDate: "2026-01-15",
-  status: "pending",
-};
+  // Get upcoming visits
+  const upcomingVisits = await prisma.visit.findMany({
+    where: {
+      clientId,
+      scheduledStart: {
+        gte: today,
+      },
+    },
+    include: {
+      employee: {
+        include: {
+          user: true,
+        },
+      },
+      service: true,
+    },
+    orderBy: { scheduledStart: "asc" },
+    take: 3,
+  });
 
-export default function ClientDashboard() {
+  // Get this month's hours
+  const monthVisits = await prisma.visit.findMany({
+    where: {
+      clientId,
+      scheduledStart: {
+        gte: startOfMonth,
+      },
+      status: "COMPLETED",
+    },
+    select: {
+      actualStart: true,
+      actualEnd: true,
+    },
+  });
+
+  const hoursThisMonth = monthVisits.reduce((sum, v) => {
+    if (v.actualStart && v.actualEnd) {
+      return sum + (new Date(v.actualEnd).getTime() - new Date(v.actualStart).getTime()) / (1000 * 60 * 60);
+    }
+    return sum;
+  }, 0);
+
+  // Get primary caregiver (most assigned)
+  const careTeam = await prisma.careTeam.findFirst({
+    where: { clientId, isPrimary: true },
+    include: {
+      employee: {
+        include: { user: true },
+      },
+    },
+  });
+
+  // Get pending invoice
+  const pendingInvoice = await prisma.invoice.findFirst({
+    where: {
+      clientId,
+      status: { in: ["PENDING", "OVERDUE"] },
+    },
+    orderBy: { dueDate: "asc" },
+  });
+
+  // Get recent care notes from visits
+  const recentVisitsWithNotes = await prisma.visit.findMany({
+    where: {
+      clientId,
+      notes: { not: null },
+    },
+    include: {
+      employee: {
+        include: { user: true },
+      },
+    },
+    orderBy: { scheduledEnd: "desc" },
+    take: 2,
+  });
+
+  return {
+    upcomingVisits: upcomingVisits.map((visit) => ({
+      id: visit.id,
+      date: visit.scheduledStart.toISOString().split("T")[0],
+      time: `${new Date(visit.scheduledStart).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} - ${new Date(visit.scheduledEnd).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
+      caregiver: visit.employee ? `${visit.employee.user.firstName} ${visit.employee.user.lastName}` : "Unassigned",
+      serviceType: visit.service?.name || "Personal Care",
+      status: visit.status === "COMPLETED" ? "confirmed" : "scheduled",
+    })),
+    hoursThisMonth: Math.round(hoursThisMonth),
+    primaryCaregiver: careTeam ? `${careTeam.employee.user.firstName} ${careTeam.employee.user.lastName}` : "Not assigned",
+    pendingInvoice: pendingInvoice
+      ? {
+          id: pendingInvoice.invoiceNumber,
+          amount: Number(pendingInvoice.amountDue),
+          dueDate: pendingInvoice.dueDate.toISOString().split("T")[0],
+          status: pendingInvoice.status.toLowerCase(),
+        }
+      : null,
+    recentNotes: recentVisitsWithNotes.map((visit) => ({
+      id: visit.id,
+      date: visit.scheduledEnd.toISOString().split("T")[0],
+      caregiver: visit.employee ? `${visit.employee.user.firstName} ${visit.employee.user.lastName}` : "Caregiver",
+      summary: visit.notes || "",
+    })),
+    nextVisitDate: upcomingVisits[0]?.scheduledStart,
+  };
+}
+
+export default async function ClientDashboard() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  // Get client record for the logged-in user
+  const client = await prisma.client.findFirst({
+    where: { userId: session.user.id },
+  });
+
+  if (!client) {
+    redirect("/unauthorized");
+  }
+
+  const { upcomingVisits, hoursThisMonth, primaryCaregiver, pendingInvoice, recentNotes, nextVisitDate } =
+    await getClientDashboardData(client.id);
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
@@ -90,7 +172,11 @@ export default function ClientDashboard() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Next Visit</p>
-                <p className="font-semibold">Jan 5, 2026</p>
+                <p className="font-semibold">
+                  {nextVisitDate
+                    ? new Date(nextVisitDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                    : "Not scheduled"}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -104,7 +190,7 @@ export default function ClientDashboard() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Hours This Month</p>
-                <p className="font-semibold">32 hours</p>
+                <p className="font-semibold">{hoursThisMonth} hours</p>
               </div>
             </div>
           </CardContent>
@@ -118,7 +204,7 @@ export default function ClientDashboard() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Primary Caregiver</p>
-                <p className="font-semibold">Jane Smith</p>
+                <p className="font-semibold">{primaryCaregiver}</p>
               </div>
             </div>
           </CardContent>
@@ -132,7 +218,7 @@ export default function ClientDashboard() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Balance Due</p>
-                <p className="font-semibold">${pendingInvoice.amount.toFixed(2)}</p>
+                <p className="font-semibold">${pendingInvoice?.amount?.toFixed(2) || "0.00"}</p>
               </div>
             </div>
           </CardContent>
