@@ -16,23 +16,29 @@ import {
   Loader2,
 } from "lucide-react";
 
-// Mock visit data
-const currentVisit = {
-  id: "1",
-  client: "Robert Williams",
-  address: "456 Oak Ave, Springfield",
-  scheduledTime: "2:00 PM - 6:00 PM",
-  serviceType: "Personal Care",
-  tasks: [
-    { id: "1", name: "Bathing assistance", required: true },
-    { id: "2", name: "Medication reminder", required: true },
-    { id: "3", name: "Meal preparation", required: true },
-    { id: "4", name: "Light housekeeping", required: false },
-    { id: "5", name: "Companionship", required: false },
-  ],
-};
-
 type ClockStatus = "clocked-out" | "clocking-in" | "clocked-in" | "clocking-out";
+
+interface Task {
+  id: string;
+  category: string;
+  description: string;
+  frequency: string;
+}
+
+interface Visit {
+  id: string;
+  clientName: string;
+  address: string;
+  scheduledStart: Date;
+  scheduledEnd: Date;
+  actualStart: Date | null;
+  actualEnd: Date | null;
+  serviceType: string;
+  status: string;
+  tasks: Task[];
+  latitude: string | null;
+  longitude: string | null;
+}
 
 export default function ClockPage() {
   const [status, setStatus] = useState<ClockStatus>("clocked-out");
@@ -42,6 +48,39 @@ export default function ClockPage() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [completedTasks, setCompletedTasks] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
+  const [currentVisit, setCurrentVisit] = useState<Visit | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch current visit data
+  useEffect(() => {
+    const fetchVisitData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await fetch("/api/employee/clock");
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch visit data");
+        }
+
+        const data = await response.json();
+        setCurrentVisit(data.currentVisit);
+
+        // If visit is already clocked in, set the status and clock in time
+        if (data.currentVisit?.actualStart && !data.currentVisit?.actualEnd) {
+          setStatus("clocked-in");
+          setClockInTime(new Date(data.currentVisit.actualStart));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchVisitData();
+  }, []);
 
   // Update current time every second
   useEffect(() => {
@@ -75,13 +114,44 @@ export default function ClockPage() {
       return;
     }
 
+    if (!currentVisit) {
+      setError("No visit scheduled");
+      return;
+    }
+
     setStatus("clocking-in");
     
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    setClockInTime(new Date());
-    setStatus("clocked-in");
+    try {
+      const response = await fetch("/api/employee/clock", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "clock-in",
+          visitId: currentVisit.id,
+          latitude: location.lat.toString(),
+          longitude: location.lng.toString(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to clock in");
+      }
+
+      const data = await response.json();
+      setClockInTime(new Date());
+      setStatus("clocked-in");
+      
+      // Update the current visit with the new data
+      if (data.visit) {
+        setCurrentVisit(data.visit);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clock in");
+      setStatus("clocked-out");
+    }
   };
 
   const handleClockOut = async () => {
@@ -90,7 +160,15 @@ export default function ClockPage() {
       return;
     }
 
-    const requiredTasks = currentVisit.tasks.filter((t) => t.required);
+    if (!currentVisit) {
+      setError("No visit scheduled");
+      return;
+    }
+
+    // Check required tasks - tasks with frequency "DAILY" or "EACH_VISIT" are considered required
+    const requiredTasks = currentVisit.tasks.filter((t) => 
+      t.frequency === "DAILY" || t.frequency === "EACH_VISIT"
+    );
     const allRequiredCompleted = requiredTasks.every((t) => completedTasks.includes(t.id));
 
     if (!allRequiredCompleted) {
@@ -100,14 +178,43 @@ export default function ClockPage() {
 
     setStatus("clocking-out");
     
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Reset state
-    setStatus("clocked-out");
-    setClockInTime(null);
-    setCompletedTasks([]);
-    setNotes("");
+    try {
+      const response = await fetch("/api/employee/clock", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "clock-out",
+          visitId: currentVisit.id,
+          latitude: location.lat.toString(),
+          longitude: location.lng.toString(),
+          notes: notes,
+          completedTasks: completedTasks,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to clock out");
+      }
+
+      const data = await response.json();
+      
+      // Reset state
+      setStatus("clocked-out");
+      setClockInTime(null);
+      setCompletedTasks([]);
+      setNotes("");
+      
+      // Update the current visit with the new data
+      if (data.visit) {
+        setCurrentVisit(data.visit);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clock out");
+      setStatus("clocked-in");
+    }
   };
 
   const toggleTask = (taskId: string) => {
@@ -134,204 +241,258 @@ export default function ClockPage() {
         <p className="text-gray-600">Electronic Visit Verification (EVV)</p>
       </div>
 
-      {/* Status Card */}
-      <Card className={status === "clocked-in" ? "border-green-500 bg-green-50" : ""}>
-        <CardContent className="pt-6">
-          <div className="text-center">
-            <div
-              className={`inline-flex p-4 rounded-full mb-4 ${
-                status === "clocked-in"
-                  ? "bg-green-100"
-                  : status === "clocking-in" || status === "clocking-out"
-                  ? "bg-blue-100"
-                  : "bg-gray-100"
-              }`}
-            >
-              {status === "clocking-in" || status === "clocking-out" ? (
-                <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
-              ) : status === "clocked-in" ? (
-                <CheckCircle className="h-12 w-12 text-green-600" />
-              ) : (
-                <Clock className="h-12 w-12 text-gray-600" />
-              )}
+      {/* Loading State */}
+      {isLoading && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
+              <p className="text-gray-600">Loading visit data...</p>
             </div>
-
-            <p className="text-lg font-medium text-gray-900 mb-1">
-              {status === "clocked-in"
-                ? "Currently Clocked In"
-                : status === "clocking-in"
-                ? "Clocking In..."
-                : status === "clocking-out"
-                ? "Clocking Out..."
-                : "Not Clocked In"}
-            </p>
-
-            {status === "clocked-in" && clockInTime && (
-              <>
-                <p className="text-3xl font-bold text-green-600 mb-2">
-                  {getElapsedTime()}
-                </p>
-                <p className="text-sm text-gray-500">
-                  Clocked in at {clockInTime.toLocaleTimeString()}
-                </p>
-              </>
-            )}
-
-            <p className="text-sm text-gray-500 mt-2">
-              Current time: {currentTime.toLocaleTimeString()}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Visit Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Current Visit</CardTitle>
-          <CardDescription>Visit details and scheduled tasks</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg">
-            <div>
-              <p className="font-semibold text-gray-900">{currentVisit.client}</p>
-              <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                <MapPin className="h-4 w-4" />
-                <span>{currentVisit.address}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                <Clock className="h-4 w-4" />
-                <span>{currentVisit.scheduledTime}</span>
-              </div>
-            </div>
-            <span className="text-sm font-medium px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
-              {currentVisit.serviceType}
-            </span>
-          </div>
-
-          {/* Location Status */}
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
-            <MapPin className={`h-5 w-5 ${location ? "text-green-600" : "text-gray-400"}`} />
-            <div className="flex-1">
-              <p className="font-medium text-gray-900">Location</p>
-              {location ? (
-                <p className="text-sm text-green-600">
-                  Location verified ({location.lat.toFixed(4)}, {location.lng.toFixed(4)})
-                </p>
-              ) : locationError ? (
-                <p className="text-sm text-red-600">{locationError}</p>
-              ) : (
-                <p className="text-sm text-gray-500">Acquiring location...</p>
-              )}
-            </div>
-            {location && <CheckCircle className="h-5 w-5 text-green-600" />}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Clock In Button */}
-      {(status === "clocked-out" || status === "clocking-in") && (
-        <Button
-          size="lg"
-          className="w-full h-16 text-lg"
-          onClick={handleClockIn}
-          disabled={!location || status === "clocking-in"}
-        >
-          {status === "clocking-in" ? (
-            <>
-              <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-              Clocking In...
-            </>
-          ) : (
-            <>
-              <Play className="mr-2 h-6 w-6" />
-              Clock In
-            </>
-          )}
-        </Button>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Tasks & Clock Out */}
-      {(status === "clocked-in" || status === "clocking-out") && (
+      {/* Error State */}
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 text-red-700">
+              <AlertCircle className="h-5 w-5" />
+              <p>{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No Visit Scheduled */}
+      {!isLoading && !currentVisit && !error && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Visit Scheduled</h3>
+              <p className="text-gray-600">You don't have any visits scheduled at this time.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Visit Data Available */}
+      {!isLoading && currentVisit && (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>Task Checklist</CardTitle>
-              <CardDescription>Mark tasks as you complete them</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {currentVisit.tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50"
-                  >
-                    <Checkbox
-                      id={task.id}
-                      checked={completedTasks.includes(task.id)}
-                      onCheckedChange={() => toggleTask(task.id)}
-                    />
-                    <Label
-                      htmlFor={task.id}
-                      className={`flex-1 cursor-pointer ${
-                        completedTasks.includes(task.id) ? "line-through text-gray-400" : ""
-                      }`}
-                    >
-                      {task.name}
-                    </Label>
-                    {task.required && (
-                      <span className="text-xs font-medium px-2 py-0.5 bg-red-100 text-red-700 rounded">
-                        Required
-                      </span>
-                    )}
-                  </div>
-                ))}
+          {/* Status Card */}
+          <Card className={status === "clocked-in" ? "border-green-500 bg-green-50" : ""}>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div
+                  className={`inline-flex p-4 rounded-full mb-4 ${
+                    status === "clocked-in"
+                      ? "bg-green-100"
+                      : status === "clocking-in" || status === "clocking-out"
+                      ? "bg-blue-100"
+                      : "bg-gray-100"
+                  }`}
+                >
+                  {status === "clocking-in" || status === "clocking-out" ? (
+                    <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
+                  ) : status === "clocked-in" ? (
+                    <CheckCircle className="h-12 w-12 text-green-600" />
+                  ) : (
+                    <Clock className="h-12 w-12 text-gray-600" />
+                  )}
+                </div>
+
+                <p className="text-lg font-medium text-gray-900 mb-1">
+                  {status === "clocked-in"
+                    ? "Currently Clocked In"
+                    : status === "clocking-in"
+                    ? "Clocking In..."
+                    : status === "clocking-out"
+                    ? "Clocking Out..."
+                    : "Not Clocked In"}
+                </p>
+
+                {status === "clocked-in" && clockInTime && (
+                  <>
+                    <p className="text-3xl font-bold text-green-600 mb-2">
+                      {getElapsedTime()}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Clocked in at {clockInTime.toLocaleTimeString()}
+                    </p>
+                  </>
+                )}
+
+                <p className="text-sm text-gray-500 mt-2">
+                  Current time: {currentTime.toLocaleTimeString()}
+                </p>
               </div>
             </CardContent>
           </Card>
 
+          {/* Visit Details */}
           <Card>
             <CardHeader>
-              <CardTitle>Visit Notes</CardTitle>
-              <CardDescription>Document any observations or concerns</CardDescription>
+              <CardTitle>Current Visit</CardTitle>
+              <CardDescription>Visit details and scheduled tasks</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Textarea
-                placeholder="Enter notes about this visit..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={4}
-              />
+            <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="font-semibold text-gray-900">{currentVisit.clientName}</p>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                    <MapPin className="h-4 w-4" />
+                    <span>{currentVisit.address}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      {new Date(currentVisit.scheduledStart).toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })} - {new Date(currentVisit.scheduledEnd).toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-sm font-medium px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
+                  {currentVisit.serviceType}
+                </span>
+              </div>
+
+              {/* Location Status */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
+                <MapPin className={`h-5 w-5 ${location ? "text-green-600" : "text-gray-400"}`} />
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">Location</p>
+                  {location ? (
+                    <p className="text-sm text-green-600">
+                      Location verified ({location.lat.toFixed(4)}, {location.lng.toFixed(4)})
+                    </p>
+                  ) : locationError ? (
+                    <p className="text-sm text-red-600">{locationError}</p>
+                  ) : (
+                    <p className="text-sm text-gray-500">Acquiring location...</p>
+                  )}
+                </div>
+                {location && <CheckCircle className="h-5 w-5 text-green-600" />}
+              </div>
             </CardContent>
           </Card>
 
-          <Button
-            size="lg"
-            variant="destructive"
-            className="w-full h-16 text-lg"
-            onClick={handleClockOut}
-            disabled={status === "clocking-out"}
-          >
-            {status === "clocking-out" ? (
-              <>
-                <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                Clocking Out...
-              </>
-            ) : (
-              <>
-                <Square className="mr-2 h-6 w-6" />
-                Clock Out
-              </>
-            )}
-          </Button>
+          {/* Clock In Button */}
+          {(status === "clocked-out" || status === "clocking-in") && (
+            <Button
+              size="lg"
+              className="w-full h-16 text-lg"
+              onClick={handleClockIn}
+              disabled={!location || status === "clocking-in"}
+            >
+              {status === "clocking-in" ? (
+                <>
+                  <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                  Clocking In...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-6 w-6" />
+                  Clock In
+                </>
+              )}
+            </Button>
+          )}
 
-          {/* Warning about required tasks */}
-          {!currentVisit.tasks
-            .filter((t) => t.required)
-            .every((t) => completedTasks.includes(t.id)) && (
-            <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700">
-              <AlertCircle className="h-5 w-5" />
-              <p className="text-sm">Complete all required tasks before clocking out</p>
-            </div>
+          {/* Tasks & Clock Out */}
+          {(status === "clocked-in" || status === "clocking-out") && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Task Checklist</CardTitle>
+                  <CardDescription>Mark tasks as you complete them</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {currentVisit.tasks.map((task) => {
+                      const isRequired = task.frequency === "DAILY" || task.frequency === "EACH_VISIT";
+                      return (
+                        <div
+                          key={task.id}
+                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50"
+                        >
+                          <Checkbox
+                            id={task.id}
+                            checked={completedTasks.includes(task.id)}
+                            onCheckedChange={() => toggleTask(task.id)}
+                          />
+                          <Label
+                            htmlFor={task.id}
+                            className={`flex-1 cursor-pointer ${
+                              completedTasks.includes(task.id) ? "line-through text-gray-400" : ""
+                            }`}
+                          >
+                            {task.description}
+                            <span className="block text-xs text-gray-500">{task.category}</span>
+                          </Label>
+                          {isRequired && (
+                            <span className="text-xs font-medium px-2 py-0.5 bg-red-100 text-red-700 rounded">
+                              Required
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Visit Notes</CardTitle>
+                  <CardDescription>Document any observations or concerns</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    placeholder="Enter notes about this visit..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={4}
+                  />
+                </CardContent>
+              </Card>
+
+              <Button
+                size="lg"
+                variant="destructive"
+                className="w-full h-16 text-lg"
+                onClick={handleClockOut}
+                disabled={status === "clocking-out"}
+              >
+                {status === "clocking-out" ? (
+                  <>
+                    <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                    Clocking Out...
+                  </>
+                ) : (
+                  <>
+                    <Square className="mr-2 h-6 w-6" />
+                    Clock Out
+                  </>
+                )}
+              </Button>
+
+              {/* Warning about required tasks */}
+              {!currentVisit.tasks
+                .filter((t) => t.frequency === "DAILY" || t.frequency === "EACH_VISIT")
+                .every((t) => completedTasks.includes(t.id)) && (
+                <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700">
+                  <AlertCircle className="h-5 w-5" />
+                  <p className="text-sm">Complete all required tasks before clocking out</p>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
