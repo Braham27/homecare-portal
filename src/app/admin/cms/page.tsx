@@ -16,6 +16,7 @@ import {
   Save,
   Eye,
   EyeOff,
+  Globe,
 } from "lucide-react";
 
 // Mock data for services
@@ -242,11 +243,134 @@ export default function CMSServicesPage() {
         <TabsContent value="pages" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Pages</CardTitle>
-              <CardDescription>Manage static page content</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Pages</CardTitle>
+                  <CardDescription>Manage static page content</CardDescription>
+                </div>
+                <Button onClick={() => {/* TODO: Add page modal */}}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Page
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-500">Page management coming soon...</p>
+              <div className="space-y-4">
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold">About Us</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Learn about our mission, values, and commitment to excellence in home care.
+                  </p>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Globe className="h-4 w-4" />
+                      /about
+                    </span>
+                    <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
+                      Published
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold">Contact Us</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Get in touch with our team for inquiries, support, or to schedule a consultation.
+                  </p>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Globe className="h-4 w-4" />
+                      /contact
+                    </span>
+                    <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
+                      Published
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold">FAQ</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Frequently asked questions about our services, billing, and care process.
+                  </p>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Globe className="h-4 w-4" />
+                      /faq
+                    </span>
+                    <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
+                      Published
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold">Privacy Policy</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Our commitment to protecting your privacy and personal information.
+                  </p>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Globe className="h-4 w-4" />
+                      /privacy
+                    </span>
+                    <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
+                      Published
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold">Terms of Service</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Terms and conditions for using our services and platform.
+                  </p>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Globe className="h-4 w-4" />
+                      /terms
+                    </span>
+                    <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
+                      Published
+                    </span>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -254,11 +378,121 @@ export default function CMSServicesPage() {
         <TabsContent value="testimonials" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Testimonials</CardTitle>
-              <CardDescription>Manage client testimonials</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Testimonials</CardTitle>
+                  <CardDescription>Manage client testimonials</CardDescription>
+                </div>
+                <Button onClick={() => {/* TODO: Add testimonial modal */}}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Testimonial
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-500">Testimonial management coming soon...</p>
+              <div className="space-y-4">
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-semibold">Margaret Anderson</h3>
+                        <div className="flex gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i} className="text-yellow-400">★</span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        &quot;The care provided by this team has been exceptional. They treat my mother with such kindness and respect, and I feel confident knowing she&apos;s in good hands every day.&quot;
+                      </p>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <span>Family Member</span>
+                        <span>•</span>
+                        <span>Posted 2 weeks ago</span>
+                        <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
+                          Published
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-semibold">Robert Williams</h3>
+                        <div className="flex gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i} className="text-yellow-400">★</span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        &quot;Professional, compassionate, and reliable. I couldn&apos;t ask for better caregivers to assist with my daily needs. They&apos;ve made such a positive difference in my life.&quot;
+                      </p>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <span>Client</span>
+                        <span>•</span>
+                        <span>Posted 1 month ago</span>
+                        <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
+                          Published
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-semibold">Eleanor Johnson</h3>
+                        <div className="flex gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i} className={i < 4 ? "text-yellow-400" : "text-gray-300"}>★</span>
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        &quot;Outstanding service from start to finish. The caregivers are well-trained, punctual, and genuinely care about their clients. Highly recommend to anyone seeking quality home care.&quot;
+                      </p>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <span>Family Member</span>
+                        <span>•</span>
+                        <span>Posted 2 months ago</span>
+                        <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
+                          Published
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

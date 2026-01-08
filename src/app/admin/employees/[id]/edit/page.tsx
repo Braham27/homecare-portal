@@ -40,7 +40,7 @@ export default function EditEmployeePage({ params }: { params: { id: string } })
 
   const fetchEmployee = async () => {
     try {
-      const response = await fetch(`/api/admin/employees?id=${params.id}`);
+      const response = await fetch(`/api/admin/employees/${params.id}`);
       if (!response.ok) throw new Error("Failed to fetch employee");
       
       const data = await response.json();

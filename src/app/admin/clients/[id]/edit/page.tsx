@@ -46,7 +46,7 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
 
   const fetchClient = async () => {
     try {
-      const response = await fetch(`/api/admin/clients?id=${params.id}`);
+      const response = await fetch(`/api/admin/clients/${params.id}`);
       if (!response.ok) throw new Error("Failed to fetch client");
       
       const data = await response.json();
