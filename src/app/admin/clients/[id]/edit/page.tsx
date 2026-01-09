@@ -50,7 +50,8 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
       if (!response.ok) throw new Error("Failed to fetch client");
       
       const data = await response.json();
-      setClient(data.client);
+      // API returns client directly, not wrapped in data.client
+      setClient(data);
     } catch (err: any) {
       setError(err.message);
     } finally {

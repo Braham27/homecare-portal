@@ -17,6 +17,8 @@ import {
   Eye,
   EyeOff,
   Globe,
+  Star,
+  MessageSquare,
 } from "lucide-react";
 
 interface Service {
@@ -30,19 +32,32 @@ interface Service {
   order: number;
 }
 
+interface Testimonial {
+  id: string;
+  clientName: string;
+  relationship: string;
+  content: string;
+  rating: number;
+  isApproved: boolean;
+  isFeatured: boolean;
+}
+
 export default function CMSServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [editingTestimonial, setEditingTestimonial] = useState<Testimonial | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingTestimonial, setIsCreatingTestimonial] = useState(false);
 
   useEffect(() => {
-    async function fetchServices() {
+    async function fetchData() {
       try {
-        const response = await fetch("/api/admin/services");
-        if (response.ok) {
-          const data = await response.json();
-          // Transform API data to match component interface
+        // Fetch services
+        const servicesResponse = await fetch("/api/admin/services");
+        if (servicesResponse.ok) {
+          const data = await servicesResponse.json();
           const transformedServices = (data.services || []).map((s: { id: string; name: string; description: string; category: string; baseRate: number }, index: number) => ({
             id: s.id,
             name: s.name,
@@ -55,9 +70,21 @@ export default function CMSServicesPage() {
           }));
           setServices(transformedServices);
         }
+
+        // Fetch testimonials
+        const testimonialsResponse = await fetch("/api/testimonials?approved=false");
+        if (testimonialsResponse.ok) {
+          const data = await testimonialsResponse.json();
+          setTestimonials(data.testimonials || []);
+        }
       } catch (error) {
-        console.error("Failed to fetch services:", error);
+        console.error("Failed to fetch data:", error);
       } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []); {
         setLoading(false);
       }
     }
@@ -129,6 +156,69 @@ export default function CMSServicesPage() {
     setServices((prev) =>
       prev.map((s) => (s.id === id ? { ...s, isActive: !s.isActive } : s))
     );
+  };
+
+  // Testimonial handlers
+  const handleSaveTestimonial = async (testimonial: Testimonial) => {
+    try {
+      if (editingTestimonial && !isCreatingTestimonial) {
+        const response = await fetch(`/api/testimonials/${testimonial.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(testimonial),
+        });
+        if (response.ok) {
+          setTestimonials((prev) =>
+            prev.map((t) => (t.id === testimonial.id ? testimonial : t))
+          );
+        }
+      } else {
+        const response = await fetch("/api/testimonials", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(testimonial),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setTestimonials((prev) => [...prev, { ...testimonial, id: data.testimonial.id }]);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to save testimonial:", error);
+    }
+    setEditingTestimonial(null);
+    setIsCreatingTestimonial(false);
+  };
+
+  const handleDeleteTestimonial = async (id: string) => {
+    if (confirm("Are you sure you want to delete this testimonial?")) {
+      try {
+        const response = await fetch(`/api/testimonials/${id}`, { method: "DELETE" });
+        if (response.ok) {
+          setTestimonials((prev) => prev.filter((t) => t.id !== id));
+        }
+      } catch (error) {
+        console.error("Failed to delete testimonial:", error);
+      }
+    }
+  };
+
+  const toggleTestimonialApproval = async (id: string) => {
+    const testimonial = testimonials.find((t) => t.id === id);
+    if (testimonial) {
+      try {
+        await fetch(`/api/testimonials/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...testimonial, isApproved: !testimonial.isApproved }),
+        });
+        setTestimonials((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, isApproved: !t.isApproved } : t))
+        );
+      } catch (error) {
+        console.error("Failed to toggle approval:", error);
+      }
+    }
   };
 
   if (loading) {
@@ -428,125 +518,138 @@ export default function CMSServicesPage() {
         </TabsContent>
 
         <TabsContent value="testimonials" className="mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Testimonials</CardTitle>
-                  <CardDescription>Manage client testimonials</CardDescription>
-                </div>
-                <Button onClick={() => {/* TODO: Add testimonial modal */}}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Testimonial
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold">Margaret Anderson</h3>
-                        <div className="flex gap-1">
-                          {[...Array(5)].map((_, i) => (
-                            <span key={i} className="text-yellow-400">★</span>
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">
-                        &quot;The care provided by this team has been exceptional. They treat my mother with such kindness and respect, and I feel confident knowing she&apos;s in good hands every day.&quot;
-                      </p>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>Family Member</span>
-                        <span>•</span>
-                        <span>Posted 2 weeks ago</span>
-                        <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
-                          Published
-                        </span>
-                      </div>
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Testimonials</CardTitle>
+                      <CardDescription>{testimonials.length} testimonial{testimonials.length !== 1 ? "s" : ""}</CardDescription>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Button onClick={() => {
+                      setIsCreatingTestimonial(true);
+                      setEditingTestimonial({
+                        id: "",
+                        clientName: "",
+                        relationship: "",
+                        content: "",
+                        rating: 5,
+                        isApproved: true,
+                        isFeatured: false,
+                      });
+                    }}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Testimonial
+                    </Button>
                   </div>
-                </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {testimonials.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <MessageSquare className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>No testimonials yet. Add your first testimonial!</p>
+                      </div>
+                    ) : (
+                      testimonials.map((testimonial) => (
+                        <div key={testimonial.id} className="border rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-semibold">{testimonial.clientName}</h3>
+                                <div className="flex gap-1">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star key={i} className={`h-4 w-4 ${i < testimonial.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">
+                                &quot;{testimonial.content.length > 150 ? testimonial.content.substring(0, 150) + "..." : testimonial.content}&quot;
+                              </p>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span>{testimonial.relationship || "Client"}</span>
+                                <span className={`px-2 py-1 rounded text-xs ${testimonial.isApproved ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                  {testimonial.isApproved ? "Published" : "Pending"}
+                                </span>
+                                {testimonial.isFeatured && (
+                                  <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">
+                                    Featured
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => toggleTestimonialApproval(testimonial.id)}
+                                title={testimonial.isApproved ? "Unpublish" : "Publish"}
+                              >
+                                {testimonial.isApproved ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setEditingTestimonial(testimonial);
+                                  setIsCreatingTestimonial(false);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => handleDeleteTestimonial(testimonial.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                <div className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold">Robert Williams</h3>
-                        <div className="flex gap-1">
-                          {[...Array(5)].map((_, i) => (
-                            <span key={i} className="text-yellow-400">★</span>
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">
-                        &quot;Professional, compassionate, and reliable. I couldn&apos;t ask for better caregivers to assist with my daily needs. They&apos;ve made such a positive difference in my life.&quot;
-                      </p>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>Client</span>
-                        <span>•</span>
-                        <span>Posted 1 month ago</span>
-                        <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
-                          Published
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+            {/* Edit Panel */}
+            <div>
+              {(editingTestimonial || isCreatingTestimonial) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {isCreatingTestimonial ? "Add Testimonial" : "Edit Testimonial"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <TestimonialForm
+                      testimonial={editingTestimonial!}
+                      onSave={handleSaveTestimonial}
+                      onCancel={() => {
+                        setEditingTestimonial(null);
+                        setIsCreatingTestimonial(false);
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
 
-                <div className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold">Eleanor Johnson</h3>
-                        <div className="flex gap-1">
-                          {[...Array(5)].map((_, i) => (
-                            <span key={i} className={i < 4 ? "text-yellow-400" : "text-gray-300"}>★</span>
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">
-                        &quot;Outstanding service from start to finish. The caregivers are well-trained, punctual, and genuinely care about their clients. Highly recommend to anyone seeking quality home care.&quot;
-                      </p>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>Family Member</span>
-                        <span>•</span>
-                        <span>Posted 2 months ago</span>
-                        <span className={`px-2 py-1 rounded text-xs bg-green-100 text-green-700`}>
-                          Published
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              {!editingTestimonial && !isCreatingTestimonial && (
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">
+                      Select a testimonial to edit or add a new one
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
@@ -636,6 +739,114 @@ function ServiceForm({
           rows={5}
           required
         />
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="submit" className="flex-1">
+          <Save className="mr-2 h-4 w-4" />
+          Save
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function TestimonialForm({
+  testimonial,
+  onSave,
+  onCancel,
+}: {
+  testimonial: Testimonial;
+  onSave: (testimonial: Testimonial) => void;
+  onCancel: () => void;
+}) {
+  const [formData, setFormData] = useState(testimonial);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="clientName">Client Name</Label>
+        <Input
+          id="clientName"
+          value={formData.clientName}
+          onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="relationship">Relationship</Label>
+        <select
+          id="relationship"
+          value={formData.relationship}
+          onChange={(e) => setFormData({ ...formData, relationship: e.target.value })}
+          className="w-full px-3 py-2 border rounded-lg"
+          aria-label="Select relationship"
+        >
+          <option value="Client">Client</option>
+          <option value="Family Member">Family Member</option>
+          <option value="Spouse">Spouse</option>
+          <option value="Son">Son</option>
+          <option value="Daughter">Daughter</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="rating">Rating</Label>
+        <select
+          id="rating"
+          value={formData.rating}
+          onChange={(e) => setFormData({ ...formData, rating: parseInt(e.target.value) })}
+          className="w-full px-3 py-2 border rounded-lg"
+          aria-label="Select rating"
+        >
+          <option value={5}>5 Stars</option>
+          <option value={4}>4 Stars</option>
+          <option value={3}>3 Stars</option>
+          <option value={2}>2 Stars</option>
+          <option value={1}>1 Star</option>
+        </select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="content">Testimonial Content</Label>
+        <Textarea
+          id="content"
+          value={formData.content}
+          onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+          rows={5}
+          required
+        />
+      </div>
+
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={formData.isApproved}
+            onChange={(e) => setFormData({ ...formData, isApproved: e.target.checked })}
+            className="rounded border-gray-300"
+          />
+          Published
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={formData.isFeatured}
+            onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })}
+            className="rounded border-gray-300"
+          />
+          Featured
+        </label>
       </div>
 
       <div className="flex gap-2">

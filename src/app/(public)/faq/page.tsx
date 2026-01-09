@@ -1,127 +1,43 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronUp, Search, HelpCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronDown, ChevronUp, Search, HelpCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 
-const faqs = [
+interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+}
+
+interface FAQCategory {
+  category: string;
+  questions: FAQ[];
+}
+
+// Fallback FAQs for when database is empty
+const fallbackFaqs: FAQCategory[] = [
   {
     category: "Getting Started",
     questions: [
-      {
-        question: "How do I start services with your agency?",
-        answer: "Starting services is simple. Contact us by phone at 1-800-HOMECARE or fill out our online inquiry form. We'll schedule a free in-home assessment to understand your needs and create a personalized care plan. Once you approve the plan, we can typically begin services within 24-48 hours.",
-      },
-      {
-        question: "What is included in the initial assessment?",
-        answer: "Our free assessment includes a comprehensive evaluation of the client's physical, emotional, and social needs. A care coordinator will visit the home to assess the living environment, discuss care preferences, review medical history (with permission), and understand the family's goals. Based on this, we develop a customized care plan.",
-      },
-      {
-        question: "How quickly can you start providing care?",
-        answer: "In most cases, we can begin care within 24-48 hours after the initial assessment and care plan approval. For urgent situations, we offer same-day service starts when possible. Contact us to discuss your timeline.",
-      },
+      { id: "1", question: "How do I start services with your agency?", answer: "Starting services is simple. Contact us by phone at 1-800-HOMECARE or fill out our online inquiry form. We'll schedule a free in-home assessment to understand your needs and create a personalized care plan.", category: "Getting Started" },
+      { id: "2", question: "How quickly can you start providing care?", answer: "In most cases, we can begin care within 24-48 hours after the initial assessment and care plan approval. For urgent situations, we offer same-day service starts when possible.", category: "Getting Started" },
     ],
   },
   {
-    category: "Services & Care",
+    category: "Services",
     questions: [
-      {
-        question: "What services do you offer?",
-        answer: "We offer a comprehensive range of medical and non-medical home care services including: Personal Care (bathing, dressing, grooming), Companion Care, Homemaking, Skilled Nursing, Medication Management, Physical/Occupational/Speech Therapy, Dementia Care, Respite Care, 24-Hour/Live-In Care, Transportation, and Hospice Support.",
-      },
-      {
-        question: "Do you provide 24-hour or live-in care?",
-        answer: "Yes, we offer both 24-hour care (with rotating caregivers in shifts) and live-in care (where a caregiver stays in the home). We'll help you determine which option best fits your needs and budget.",
-      },
-      {
-        question: "Can you help with Alzheimer's or dementia care?",
-        answer: "Absolutely. We have specially trained caregivers experienced in dementia care. They're skilled in managing challenging behaviors, maintaining safety, providing cognitive stimulation, and following established routines that comfort individuals with memory conditions.",
-      },
-      {
-        question: "What if my loved one's needs change over time?",
-        answer: "Care needs often evolve, and we're prepared for that. We regularly reassess clients and adjust care plans accordingly. Whether you need to increase hours, add services, or modify the schedule, we work with you to ensure care always matches current needs.",
-      },
+      { id: "3", question: "What services do you offer?", answer: "We offer a comprehensive range of home care services including Personal Care, Companion Care, Skilled Nursing, Dementia Care, Respite Care, and 24-Hour Care.", category: "Services" },
+      { id: "4", question: "Do you provide 24-hour or live-in care?", answer: "Yes, we offer both 24-hour care with rotating caregivers and live-in care options.", category: "Services" },
     ],
   },
   {
-    category: "Caregivers & Staff",
+    category: "Billing",
     questions: [
-      {
-        question: "How do you select and screen your caregivers?",
-        answer: "All our caregivers undergo a rigorous screening process including comprehensive background checks (criminal, sex offender registry, abuse registry), reference verification, credential verification, skills assessment, and in-person interviews. We only hire caregivers who demonstrate compassion, reliability, and professionalism.",
-      },
-      {
-        question: "Are your caregivers bonded and insured?",
-        answer: "Yes, all our caregivers are fully bonded and insured. Our agency carries comprehensive liability insurance and workers' compensation coverage, protecting both our clients and employees.",
-      },
-      {
-        question: "Can I choose or change my caregiver?",
-        answer: "We carefully match caregivers with clients based on care needs, personality, schedule, and preferences. If you're not satisfied with a caregiver match, simply let us know and we'll find a better fit. Your comfort and satisfaction are our priority.",
-      },
-      {
-        question: "What training do your caregivers receive?",
-        answer: "All caregivers complete our comprehensive orientation program covering safety, infection control, client rights, emergency procedures, and more. Many hold certifications (CNA, HHA). We provide ongoing training in specialized areas like dementia care, fall prevention, and chronic disease management.",
-      },
-    ],
-  },
-  {
-    category: "Scheduling & Availability",
-    questions: [
-      {
-        question: "What are your hours of operation?",
-        answer: "Our caregivers are available 24 hours a day, 7 days a week, 365 days a year. Office hours for administrative matters are Monday-Friday 8am-6pm and Saturday 9am-2pm, but our on-call supervisors are available 24/7 for urgent matters.",
-      },
-      {
-        question: "What is the minimum number of hours required?",
-        answer: "Our minimum visit is typically 2-4 hours depending on the service type and your location. For ongoing care, we can discuss scheduling options that work best for your budget and needs.",
-      },
-      {
-        question: "What happens if my regular caregiver is sick or unavailable?",
-        answer: "We maintain a team of qualified backup caregivers familiar with your care plan. If your regular caregiver is unavailable, we'll ensure a suitable replacement is sent so your care is never interrupted. We always notify you in advance when possible.",
-      },
-    ],
-  },
-  {
-    category: "Payment & Insurance",
-    questions: [
-      {
-        question: "How much do your services cost?",
-        answer: "Rates vary depending on the type of care, hours needed, and location. We offer competitive hourly rates and can provide a detailed quote after understanding your specific needs. Contact us for a free assessment and cost estimate.",
-      },
-      {
-        question: "Do you accept Medicaid?",
-        answer: "Yes, we are an approved Medicaid provider. We can help determine if you or your loved one qualifies for Medicaid-covered home care services and assist with the authorization process.",
-      },
-      {
-        question: "Do you work with long-term care insurance?",
-        answer: "Yes, we work with most long-term care insurance providers. We can help you understand your policy benefits and assist with claims submission. Many families are surprised to find their policies cover more than expected.",
-      },
-      {
-        question: "What payment methods do you accept?",
-        answer: "We accept various payment methods including credit cards, debit cards, ACH bank transfers, and checks. We can also set up automatic payments for convenience. Private pay clients are invoiced weekly or bi-weekly.",
-      },
-      {
-        question: "What is your Premium Care Plan?",
-        answer: "Our Premium Care Plan offers enhanced services including weekly RN supervision visits, priority caregiver matching, extended hours availability, 24/7 on-call nursing support, and dedicated family care coordination. It's ideal for clients who want an extra layer of oversight and support.",
-      },
-    ],
-  },
-  {
-    category: "Safety & Compliance",
-    questions: [
-      {
-        question: "Is your agency licensed?",
-        answer: "Yes, we are a fully licensed home care agency, meeting all state requirements for operation. Our license number is displayed on our website and can be verified with the state health department.",
-      },
-      {
-        question: "How do you ensure HIPAA compliance?",
-        answer: "We take privacy seriously. All staff are trained in HIPAA regulations. We use secure, encrypted systems for all client information. Access to records is strictly limited to those involved in care, and we maintain comprehensive audit trails of all data access.",
-      },
-      {
-        question: "What safety measures do you have in place?",
-        answer: "Safety is paramount. We conduct home safety assessments, train caregivers in fall prevention and emergency procedures, and maintain 24/7 on-call support. For Medicaid clients, we use Electronic Visit Verification (EVV) to ensure visits occur as scheduled.",
-      },
+      { id: "5", question: "Do you accept Medicaid?", answer: "Yes, we are an approved Medicaid provider. We can help determine eligibility and assist with authorization.", category: "Billing" },
+      { id: "6", question: "What payment methods do you accept?", answer: "We accept credit cards, debit cards, ACH bank transfers, and checks. Automatic payment options are available.", category: "Billing" },
     ],
   },
 ];
@@ -129,6 +45,43 @@ const faqs = [
 export default function FAQPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [openItems, setOpenItems] = useState<string[]>([]);
+  const [faqs, setFaqs] = useState<FAQCategory[]>(fallbackFaqs);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchFAQs() {
+      try {
+        const response = await fetch("/api/faq");
+        if (response.ok) {
+          const data = await response.json();
+          const faqList = data.faqs || [];
+          
+          if (faqList.length > 0) {
+            // Group FAQs by category
+            const grouped = faqList.reduce((acc: Record<string, FAQ[]>, faq: FAQ) => {
+              const category = faq.category || "General";
+              if (!acc[category]) acc[category] = [];
+              acc[category].push(faq);
+              return acc;
+            }, {});
+
+            const categorizedFaqs: FAQCategory[] = Object.entries(grouped).map(
+              ([category, questions]) => ({
+                category,
+                questions: questions as FAQ[],
+              })
+            );
+            setFaqs(categorizedFaqs);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch FAQs:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchFAQs();
+  }, []);
 
   const toggleItem = (id: string) => {
     setOpenItems((prev) =>

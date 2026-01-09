@@ -49,7 +49,7 @@ export default withAuth(
       }
 
       // Allow public API routes
-      if (pathname.startsWith("/api/services") || pathname.startsWith("/api/faq")) {
+      if (pathname.startsWith("/api/services") || pathname.startsWith("/api/faq") || pathname.startsWith("/api/testimonials")) {
         return NextResponse.next();
       }
 
@@ -97,6 +97,7 @@ export default withAuth(
           pathname.startsWith("/api/auth") ||
           pathname.startsWith("/api/services") ||
           pathname.startsWith("/api/faq") ||
+          pathname.startsWith("/api/testimonials") ||
           pathname.startsWith("/api/webhooks")
         ) {
           return true;

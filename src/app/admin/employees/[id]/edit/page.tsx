@@ -44,7 +44,8 @@ export default function EditEmployeePage({ params }: { params: { id: string } })
       if (!response.ok) throw new Error("Failed to fetch employee");
       
       const data = await response.json();
-      setEmployee(data.employee);
+      // API returns employee directly, not wrapped in data.employee
+      setEmployee(data);
     } catch (err: any) {
       setError(err.message);
     } finally {

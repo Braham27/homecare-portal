@@ -1,108 +1,55 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Star, Quote } from "lucide-react";
+import { Star, Quote, Loader2 } from "lucide-react";
 import Link from "next/link";
 
-const testimonials = [
-  {
-    name: "Sarah Johnson",
-    relation: "Daughter of Eleanor J.",
-    rating: 5,
-    text: "The care my mother received was exceptional. The caregivers were professional, compassionate, and truly treated her like family. It gave our whole family peace of mind knowing she was in such good hands.",
-    service: "Personal Care",
-    date: "December 2025"
-  },
-  {
-    name: "Michael Chen",
-    relation: "Son of Robert C.",
-    rating: 5,
-    text: "After Dad's stroke, we needed skilled nursing care at home. The nurses were knowledgeable, attentive, and helped him recover faster than we expected. We couldn't have done it without them.",
-    service: "Skilled Nursing",
-    date: "November 2025"
-  },
-  {
-    name: "Linda Martinez",
-    relation: "Wife of James M.",
-    rating: 5,
-    text: "As a full-time caregiver for my husband with Alzheimer's, respite care has been a lifesaver. Knowing he's with someone who understands his needs allows me to recharge and be a better caregiver.",
-    service: "Respite Care & Dementia Care",
-    date: "October 2025"
-  },
-  {
-    name: "David Thompson",
-    relation: "Son of Margaret T.",
-    rating: 5,
-    text: "Mom wanted to stay in her own home, and your 24-hour care made that possible. The caregivers became like family to her. She loved their company and we loved the peace of mind.",
-    service: "24-Hour Care",
-    date: "September 2025"
-  },
-  {
-    name: "Jennifer Williams",
-    relation: "Daughter of Dorothy W.",
-    rating: 5,
-    text: "The companion care services brought joy back into my mother's life. Her caregiver not only helps with daily tasks but has become a true friend. Mom looks forward to their time together every day.",
-    service: "Companion Care",
-    date: "August 2025"
-  },
-  {
-    name: "Robert Anderson",
-    relation: "Husband of Patricia A.",
-    rating: 5,
-    text: "After my wife's hip replacement, we needed someone who could help with physical therapy exercises at home. The therapist was patient, professional, and got her back on her feet quickly.",
-    service: "Physical Therapy",
-    date: "July 2025"
-  },
-  {
-    name: "Emily Rodriguez",
-    relation: "Daughter of Carlos R.",
-    rating: 5,
-    text: "Transitioning from hospital to home was scary, but your post-hospitalization care team made it seamless. They coordinated with doctors, managed medications, and monitored Dad's recovery closely.",
-    service: "Post-Hospital Care",
-    date: "June 2025"
-  },
-  {
-    name: "Thomas Baker",
-    relation: "Son of Helen B.",
-    rating: 5,
-    text: "The level of professionalism and care is outstanding. Every caregiver who has worked with Mom has been thoroughly trained, respectful, and genuinely caring. You can tell they love what they do.",
-    service: "Personal Care",
-    date: "May 2025"
-  },
-  {
-    name: "Angela White",
-    relation: "Daughter of Richard W.",
-    rating: 5,
-    text: "My father has specific dietary needs and mobility challenges. The care plan was customized to his exact needs, and the team adapts as those needs change. Truly personalized care.",
-    service: "Personal Care & Homemaker",
-    date: "April 2025"
-  },
-  {
-    name: "Christopher Lee",
-    relation: "Son of Marie L.",
-    rating: 5,
-    text: "Billing and scheduling through the online portal is so convenient. We can see Mom's care notes, schedule changes, and pay invoices all in one place. The transparency is refreshing.",
-    service: "Multiple Services",
-    date: "March 2025"
-  },
-  {
-    name: "Patricia Green",
-    relation: "Daughter of William G.",
-    rating: 5,
-    text: "Dad was resistant to having help at first, but his caregiver won him over with patience and kindness. Now he considers her part of the family. Thank you for matching us so perfectly.",
-    service: "Companion Care",
-    date: "February 2025"
-  },
-  {
-    name: "Steven Harris",
-    relation: "Son of Barbara H.",
-    rating: 5,
-    text: "The communication from the office staff is excellent. They keep us informed, respond quickly to concerns, and truly care about our family's experience. Five stars all around!",
-    service: "Personal Care",
-    date: "January 2025"
-  }
+interface Testimonial {
+  id: string;
+  clientName: string;
+  relationship: string | null;
+  content: string;
+  rating: number | null;
+  isFeatured: boolean;
+  createdAt: string;
+}
+
+// Fallback testimonials
+const fallbackTestimonials: Testimonial[] = [
+  { id: "1", clientName: "Sarah Johnson", relationship: "Daughter", content: "The care my mother received was exceptional. The caregivers were professional, compassionate, and truly treated her like family.", rating: 5, isFeatured: true, createdAt: new Date().toISOString() },
+  { id: "2", clientName: "Michael Chen", relationship: "Son", content: "After Dad's stroke, we needed skilled nursing care at home. The nurses were knowledgeable and helped him recover faster than expected.", rating: 5, isFeatured: true, createdAt: new Date().toISOString() },
+  { id: "3", clientName: "Linda Martinez", relationship: "Wife", content: "As a full-time caregiver for my husband with Alzheimer's, respite care has been a lifesaver.", rating: 5, isFeatured: false, createdAt: new Date().toISOString() },
 ];
 
 export default function TestimonialsPage() {
+  const [testimonials, setTestimonials] = useState<Testimonial[]>(fallbackTestimonials);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTestimonials() {
+      try {
+        const response = await fetch("/api/testimonials");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.testimonials && data.testimonials.length > 0) {
+            setTestimonials(data.testimonials);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch testimonials:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchTestimonials();
+  }, []);
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Hero Section */}
@@ -152,25 +99,30 @@ export default function TestimonialsPage() {
 
         {/* Testimonials Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-          {testimonials.map((testimonial, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-                <Quote className="h-8 w-8 text-blue-200 mb-2" />
-                <p className="text-gray-700 mb-4 italic">"{testimonial.text}"</p>
-                <div className="border-t pt-4">
-                  <div className="font-semibold text-gray-900">{testimonial.name}</div>
-                  <div className="text-sm text-gray-600">{testimonial.relation}</div>
-                  <div className="text-sm text-blue-600 mt-1">{testimonial.service}</div>
-                  <div className="text-xs text-gray-500 mt-1">{testimonial.date}</div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {loading ? (
+            <div className="col-span-full flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            testimonials.map((testimonial) => (
+              <Card key={testimonial.id} className="hover:shadow-lg transition-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-1 mb-4">
+                    {[...Array(testimonial.rating || 5)].map((_, i) => (
+                      <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                    ))}
+                  </div>
+                  <Quote className="h-8 w-8 text-blue-200 mb-2" />
+                  <p className="text-gray-700 mb-4 italic">&quot;{testimonial.content}&quot;</p>
+                  <div className="border-t pt-4">
+                    <div className="font-semibold text-gray-900">{testimonial.clientName}</div>
+                    <div className="text-sm text-gray-600">{testimonial.relationship || "Family Member"}</div>
+                    <div className="text-xs text-gray-500 mt-1">{formatDate(testimonial.createdAt)}</div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Video Testimonials Section (Placeholder) */}

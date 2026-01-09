@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,15 +8,57 @@ import {
   Download,
   Calendar,
   TrendingUp,
+  TrendingDown,
   Users,
   Clock,
   DollarSign,
   FileText,
   BarChart3,
+  Loader2,
 } from "lucide-react";
+
+interface ReportStats {
+  totalRevenue: number;
+  revenueChange: number;
+  totalVisits: number;
+  visitsChange: number;
+  activeClients: number;
+  newClients: number;
+  evvCompliance: number;
+}
 
 export default function ReportsPage() {
   const [dateRange, setDateRange] = useState("month");
+  const [stats, setStats] = useState<ReportStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStats();
+  }, [dateRange]);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/admin/reports?range=${dateRange}`);
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data.stats);
+      }
+    } catch (error) {
+      console.error("Failed to fetch stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
 
   const reports = [
     {
@@ -94,73 +136,97 @@ export default function ReportsPage() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total Revenue</p>
-                <p className="text-2xl font-bold">$124,500</p>
-                <div className="flex items-center gap-1 text-sm text-green-600">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>+12.5% vs last month</span>
+            {loading ? (
+              <div className="flex items-center justify-center h-20">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Total Revenue</p>
+                  <p className="text-2xl font-bold">{formatCurrency(stats?.totalRevenue || 0)}</p>
+                  <div className={`flex items-center gap-1 text-sm ${(stats?.revenueChange || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {(stats?.revenueChange || 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    <span>{stats?.revenueChange || 0}% vs last period</span>
+                  </div>
+                </div>
+                <div className="bg-green-100 p-3 rounded-lg">
+                  <DollarSign className="h-6 w-6 text-green-600" />
                 </div>
               </div>
-              <div className="bg-green-100 p-3 rounded-lg">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total Visits</p>
-                <p className="text-2xl font-bold">1,234</p>
-                <div className="flex items-center gap-1 text-sm text-green-600">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>+8.2% vs last month</span>
+            {loading ? (
+              <div className="flex items-center justify-center h-20">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Total Visits</p>
+                  <p className="text-2xl font-bold">{stats?.totalVisits?.toLocaleString() || 0}</p>
+                  <div className={`flex items-center gap-1 text-sm ${(stats?.visitsChange || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {(stats?.visitsChange || 0) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    <span>{stats?.visitsChange || 0}% vs last period</span>
+                  </div>
+                </div>
+                <div className="bg-blue-100 p-3 rounded-lg">
+                  <Calendar className="h-6 w-6 text-blue-600" />
                 </div>
               </div>
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <Calendar className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Active Clients</p>
-                <p className="text-2xl font-bold">156</p>
-                <div className="flex items-center gap-1 text-sm text-green-600">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>+3 this month</span>
+            {loading ? (
+              <div className="flex items-center justify-center h-20">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Active Clients</p>
+                  <p className="text-2xl font-bold">{stats?.activeClients || 0}</p>
+                  <div className="flex items-center gap-1 text-sm text-green-600">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>+{stats?.newClients || 0} this period</span>
+                  </div>
+                </div>
+                <div className="bg-purple-100 p-3 rounded-lg">
+                  <Users className="h-6 w-6 text-purple-600" />
                 </div>
               </div>
-              <div className="bg-purple-100 p-3 rounded-lg">
-                <Users className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">EVV Compliance</p>
-                <p className="text-2xl font-bold">98.5%</p>
-                <div className="flex items-center gap-1 text-sm text-green-600">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>Above target</span>
+            {loading ? (
+              <div className="flex items-center justify-center h-20">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">EVV Compliance</p>
+                  <p className="text-2xl font-bold">{stats?.evvCompliance || 0}%</p>
+                  <div className={`flex items-center gap-1 text-sm ${(stats?.evvCompliance || 0) >= 95 ? "text-green-600" : "text-orange-600"}`}>
+                    {(stats?.evvCompliance || 0) >= 95 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    <span>{(stats?.evvCompliance || 0) >= 95 ? "Above target" : "Below target"}</span>
+                  </div>
+                </div>
+                <div className="bg-orange-100 p-3 rounded-lg">
+                  <Clock className="h-6 w-6 text-orange-600" />
                 </div>
               </div>
-              <div className="bg-orange-100 p-3 rounded-lg">
-                <Clock className="h-6 w-6 text-orange-600" />
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
