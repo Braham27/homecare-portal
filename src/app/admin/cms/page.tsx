@@ -84,11 +84,6 @@ export default function CMSServicesPage() {
       }
     }
     fetchData();
-  }, []); {
-        setLoading(false);
-      }
-    }
-    fetchServices();
   }, []);
 
   const handleSave = async (service: Service) => {
