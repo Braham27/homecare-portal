@@ -113,7 +113,7 @@ async function getDashboardData() {
 
   // Get open positions
   const openPositions = await prisma.jobPosting.count({
-    where: { status: "OPEN" },
+    where: { isActive: true },
   });
 
   // Get upcoming visits today
@@ -174,16 +174,16 @@ async function getDashboardData() {
     });
   }
 
-  // Check pending timesheets
-  const pendingTimesheets = await prisma.timesheet.count({
-    where: { status: "PENDING" },
+  // Check pending time entries (unapproved)
+  const pendingTimeEntries = await prisma.timeEntry.count({
+    where: { approved: false },
   });
-  if (pendingTimesheets > 0) {
+  if (pendingTimeEntries > 0) {
     alerts.push({
       id: "pending-timesheets",
       type: "info",
       title: "Pending Approvals",
-      message: `${pendingTimesheets} timesheets awaiting approval`,
+      message: `${pendingTimeEntries} time entries awaiting approval`,
       action: "/admin/employees",
       actionLabel: "Review",
     });
@@ -469,11 +469,12 @@ export default async function AdminDashboard() {
               {recentActivity.length > 0 ? (
                 recentActivity.map((activity) => {
                   const timeAgo = getTimeAgo(new Date(activity.createdAt));
+                  const activityDescription = `${activity.action} ${activity.entityType}${activity.entityId ? ` #${activity.entityId.slice(0, 8)}` : ""}`;
                   return (
                     <div key={activity.id} className="flex items-start gap-3">
                       <div className="w-2 h-2 rounded-full bg-primary mt-2" />
                       <div className="flex-1">
-                        <p className="text-sm text-gray-900">{activity.details || activity.action}</p>
+                        <p className="text-sm text-gray-900">{activityDescription}</p>
                         <p className="text-xs text-gray-500">{timeAgo}</p>
                       </div>
                     </div>

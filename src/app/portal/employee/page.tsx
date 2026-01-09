@@ -40,7 +40,6 @@ async function getEmployeeDashboardData(employeeId: string) {
           user: true,
         },
       },
-      service: true,
     },
     orderBy: { scheduledStart: "asc" },
   });
@@ -79,11 +78,11 @@ async function getEmployeeDashboardData(employeeId: string) {
     },
   });
 
-  // Get pending timesheets
-  const pendingTimesheets = await prisma.timesheet.count({
+  // Get pending time entries (unapproved)
+  const pendingTimesheets = await prisma.timeEntry.count({
     where: {
       employeeId,
-      status: "PENDING",
+      approved: false,
     },
   });
 
@@ -93,7 +92,7 @@ async function getEmployeeDashboardData(employeeId: string) {
       client: `${visit.client.user.firstName} ${visit.client.user.lastName}`,
       address: `${visit.client.address}, ${visit.client.city}`,
       time: `${new Date(visit.scheduledStart).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} - ${new Date(visit.scheduledEnd).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
-      serviceType: visit.service?.name || "Personal Care",
+      serviceType: visit.serviceType || "Personal Care",
       status: visit.status === "COMPLETED" ? "completed" : "upcoming",
       clockInTime: visit.actualStart ? new Date(visit.actualStart).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : undefined,
       clockOutTime: visit.actualEnd ? new Date(visit.actualEnd).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : undefined,

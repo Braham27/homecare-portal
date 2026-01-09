@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,14 +13,15 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const employee = await prisma.employee.findUnique({
       where: { id },
       include: {
         user: {
           select: {
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
             phone: true,
           },
@@ -34,7 +35,8 @@ export async function GET(
               include: {
                 user: {
                   select: {
-                    name: true,
+                    firstName: true,
+                    lastName: true,
                   },
                 },
               },
@@ -77,7 +79,7 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -85,7 +87,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const data = await req.json();
 
     const employee = await prisma.employee.update({
@@ -107,7 +109,8 @@ export async function PUT(
       include: {
         user: {
           select: {
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
             phone: true,
           },
@@ -127,7 +130,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -135,7 +138,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Soft delete by setting status to TERMINATED
     await prisma.employee.update({

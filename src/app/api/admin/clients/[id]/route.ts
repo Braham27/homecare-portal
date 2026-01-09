@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -13,14 +13,15 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     const client = await prisma.client.findUnique({
       where: { id },
       include: {
         user: {
           select: {
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
             phone: true,
           },
@@ -29,14 +30,16 @@ export async function GET(
           select: {
             id: true,
             goals: true,
-            routines: true,
+            adlNeeds: true,
+            iadlNeeds: true,
           },
         },
         familyMembers: {
           include: {
             user: {
               select: {
-                name: true,
+                firstName: true,
+                lastName: true,
                 email: true,
                 phone: true,
               },
@@ -52,7 +55,8 @@ export async function GET(
                 type: true,
                 user: {
                   select: {
-                    name: true,
+                    firstName: true,
+                    lastName: true,
                   },
                 },
               },
@@ -83,7 +87,7 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -91,15 +95,29 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const data = await req.json();
 
-    const client = await prisma.client.update({
+    // First update the associated user if name fields are provided
+    const client = await prisma.client.findUnique({ where: { id }, select: { userId: true } });
+    if (!client) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 });
+    }
+
+    if (data.firstName || data.lastName) {
+      await prisma.user.update({
+        where: { id: client.userId },
+        data: {
+          ...(data.firstName && { firstName: data.firstName }),
+          ...(data.lastName && { lastName: data.lastName }),
+        },
+      });
+    }
+
+    const updatedClient = await prisma.client.update({
       where: { id },
       data: {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        dateOfBirth: data.dateOfBirth,
+        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
         address: data.address,
         city: data.city,
         state: data.state,
@@ -123,14 +141,15 @@ export async function PUT(
       include: {
         user: {
           select: {
-            name: true,
+            firstName: true,
+            lastName: true,
             email: true,
           },
         },
       },
     });
 
-    return NextResponse.json(client);
+    return NextResponse.json(updatedClient);
   } catch (error) {
     console.error("Error updating client:", error);
     return NextResponse.json(
@@ -142,7 +161,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -150,7 +169,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Soft delete by setting status to DISCHARGED
     await prisma.client.update({

@@ -23,31 +23,55 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 
+// Type definitions
+interface CareGoal {
+  id: string;
+  category: string;
+  goal: string;
+  progress: number;
+  status: string;
+  target: string;
+  tasks: { task: string; completed: boolean }[];
+}
+
+interface DailyRoutineItem {
+  time: string;
+  activity: string;
+  caregiver: string;
+}
+
+interface Medication {
+  name: string;
+  purpose: string;
+  schedule: string;
+  prescriber: string;
+}
 async function getCarePlanData(clientId: string) {
   const client = await prisma.client.findUnique({
     where: { id: clientId },
     include: {
       user: true,
       carePlan: true,
-      careTeam: {
+      assignments: {
         include: {
           employee: {
             include: { user: true },
           },
         },
+        where: { endDate: null },
       },
     },
   });
 
   if (!client) return null;
 
-  // Get primary caregiver
-  const primaryCaregiver = client.careTeam.find((ct) => ct.isPrimary)?.employee;
+  // Get primary caregiver from active assignments
+  const primaryCaregiver = client.assignments.find((a) => a.isPrimary)?.employee || client.assignments[0]?.employee;
 
   return {
     carePlan: {
       clientName: `${client.user.firstName} ${client.user.lastName}`,
-      startDate: client.startDate?.toISOString().split("T")[0] || "N/A",
+      startDate: client.admissionDate?.toISOString().split("T")[0] || "N/A",
       lastReview: client.carePlan?.updatedAt?.toISOString().split("T")[0] || "N/A",
       nextReview: "Quarterly Review",
       careCoordinator: "Care Coordinator",
@@ -55,8 +79,17 @@ async function getCarePlanData(clientId: string) {
       status: client.status,
     },
     careGoals: client.carePlan?.goals ? JSON.parse(JSON.stringify(client.carePlan.goals)) : [],
-    dailyRoutine: client.carePlan?.routines ? JSON.parse(JSON.stringify(client.carePlan.routines)) : [],
-    medications: client.medications ? JSON.parse(client.medications) : [],
+    dailyRoutine: client.carePlan?.adlNeeds ? JSON.parse(JSON.stringify(client.carePlan.adlNeeds)) : [],
+    medications: client.medications 
+      ? (typeof client.medications === 'string' 
+          ? client.medications.split(',').map((m, i) => ({ 
+              name: m.trim(), 
+              purpose: "As prescribed", 
+              schedule: "As directed", 
+              prescriber: "Primary Physician" 
+            })) 
+          : []) 
+      : [],
     allergies: client.allergies || "None known",
     primaryDiagnosis: client.primaryDiagnosis || "Not specified",
     emergencyContact: client.emergencyContact,
@@ -160,9 +193,9 @@ export default async function CarePlanPage() {
     status: "ACTIVE",
   };
 
-  const careGoals = carePlanData?.careGoals?.length ? carePlanData.careGoals : defaultCareGoals;
-  const dailyRoutine = carePlanData?.dailyRoutine?.length ? carePlanData.dailyRoutine : defaultDailyRoutine;
-  const medications = carePlanData?.medications?.length ? carePlanData.medications : defaultMedications;
+  const careGoals: CareGoal[] = carePlanData?.careGoals?.length ? carePlanData.careGoals : defaultCareGoals;
+  const dailyRoutine: DailyRoutineItem[] = carePlanData?.dailyRoutine?.length ? carePlanData.dailyRoutine : defaultDailyRoutine;
+  const medications: Medication[] = carePlanData?.medications?.length ? carePlanData.medications : defaultMedications;
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}

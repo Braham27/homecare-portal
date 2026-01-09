@@ -28,20 +28,21 @@ async function getHiringData() {
     include: {
       jobPosting: true,
     },
-    orderBy: { appliedAt: "desc" },
+    orderBy: { createdAt: "desc" },
     take: 20,
   });
 
   // Get open job postings
   const openPositions = await prisma.jobPosting.findMany({
-    where: { status: "OPEN" },
+    where: { isActive: true },
   });
 
-  // Calculate stats
-  const newApplications = jobApplications.filter((app) => app.status === "NEW").length;
-  const inReview = jobApplications.filter((app) => app.status === "REVIEWING").length;
+  // Calculate stats based on actual ApplicationStatus enum
+  const newApplications = jobApplications.filter((app) => app.status === "SUBMITTED").length;
+  const inReview = jobApplications.filter((app) => app.status === "UNDER_REVIEW").length;
+  const interviewScheduled = jobApplications.filter((app) => app.status === "INTERVIEW_SCHEDULED").length;
   const interviewed = jobApplications.filter((app) => app.status === "INTERVIEWED").length;
-  const offerMade = jobApplications.filter((app) => app.status === "OFFER_MADE").length;
+  const offerMade = jobApplications.filter((app) => app.status === "OFFER_EXTENDED").length;
   const rejected = jobApplications.filter((app) => app.status === "REJECTED").length;
   const hired = jobApplications.filter((app) => app.status === "HIRED").length;
 
@@ -49,18 +50,18 @@ async function getHiringData() {
     applicationStats: {
       total: jobApplications.length,
       new: newApplications,
-      inReview,
+      inReview: inReview + interviewScheduled,
       interviewed,
       offerMade,
       rejected,
     },
     applications: jobApplications.map((app) => ({
       id: app.id,
-      applicantName: app.name,
+      applicantName: `${app.firstName} ${app.lastName}`,
       position: app.jobPosting?.title || "General Application",
-      appliedDate: app.appliedAt.toISOString().split("T")[0],
+      appliedDate: app.createdAt.toISOString().split("T")[0],
       status: app.status.toLowerCase().replace("_", "-"),
-      experience: app.experience || "Not specified",
+      experience: app.yearsExperience ? `${app.yearsExperience} years` : "Not specified",
       email: app.email,
       phone: app.phone || "Not provided",
       location: "Springfield, IL",
@@ -75,6 +76,19 @@ async function getHiringData() {
       { stage: "Hired", count: hired, color: "bg-teal-500" },
     ],
     openPositionsCount: openPositions.length,
+    // Get upcoming interviews from applications with INTERVIEW_SCHEDULED status
+    upcomingInterviews: jobApplications
+      .filter((app) => app.status === "INTERVIEW_SCHEDULED")
+      .slice(0, 5)
+      .map((app) => ({
+        id: app.id,
+        applicantName: `${app.firstName} ${app.lastName}`,
+        position: app.jobPosting?.title || "General Application",
+        date: app.reviewedAt ? app.reviewedAt.toISOString().split("T")[0] : "TBD",
+        time: "10:00 AM",
+        interviewer: "HR Manager",
+        type: "In-person",
+      })),
   };
 }
 
@@ -119,7 +133,7 @@ const getStatusText = (status: string) => {
 };
 
 export default async function HiringPage() {
-  const { applicationStats, applications, hiringPipeline, openPositionsCount } = await getHiringData();
+  const { applicationStats, applications, hiringPipeline, openPositionsCount, upcomingInterviews } = await getHiringData();
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}

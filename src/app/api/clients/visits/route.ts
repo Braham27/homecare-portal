@@ -27,7 +27,6 @@ export async function GET() {
             user: true,
           },
         },
-        service: true,
       },
       orderBy: { scheduledStart: "asc" },
     });
@@ -46,7 +45,7 @@ export async function GET() {
       caregiver: visit.employee
         ? `${visit.employee.user.firstName} ${visit.employee.user.lastName}`
         : "Unassigned",
-      serviceType: visit.service?.name || "Personal Care",
+      serviceType: visit.serviceType || "Personal Care",
       status: visit.status === "COMPLETED" ? "confirmed" : "scheduled",
       tasks: ["Bathing assistance", "Medication reminder", "Meal preparation"],
     }));

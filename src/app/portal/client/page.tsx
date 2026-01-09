@@ -37,7 +37,6 @@ async function getClientDashboardData(clientId: string) {
           user: true,
         },
       },
-      service: true,
     },
     orderBy: { scheduledStart: "asc" },
     take: 3,
@@ -65,9 +64,9 @@ async function getClientDashboardData(clientId: string) {
     return sum;
   }, 0);
 
-  // Get primary caregiver (most assigned)
-  const careTeam = await prisma.careTeam.findFirst({
-    where: { clientId, isPrimary: true },
+  // Get primary caregiver (from assignments)
+  const primaryAssignment = await prisma.caregiverAssignment.findFirst({
+    where: { clientId, isPrimary: true, endDate: null },
     include: {
       employee: {
         include: { user: true },
@@ -105,11 +104,11 @@ async function getClientDashboardData(clientId: string) {
       date: visit.scheduledStart.toISOString().split("T")[0],
       time: `${new Date(visit.scheduledStart).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} - ${new Date(visit.scheduledEnd).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
       caregiver: visit.employee ? `${visit.employee.user.firstName} ${visit.employee.user.lastName}` : "Unassigned",
-      serviceType: visit.service?.name || "Personal Care",
+      serviceType: visit.serviceType || "Personal Care",
       status: visit.status === "COMPLETED" ? "confirmed" : "scheduled",
     })),
     hoursThisMonth: Math.round(hoursThisMonth),
-    primaryCaregiver: careTeam ? `${careTeam.employee.user.firstName} ${careTeam.employee.user.lastName}` : "Not assigned",
+    primaryCaregiver: primaryAssignment ? `${primaryAssignment.employee.user.firstName} ${primaryAssignment.employee.user.lastName}` : "Not assigned",
     pendingInvoice: pendingInvoice
       ? {
           id: pendingInvoice.invoiceNumber,
