@@ -115,7 +115,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               <DollarSign className="h-5 w-5 text-gray-400" />
               <div>
                 <p className="text-sm text-gray-500">Hourly Rate</p>
-                <p className="font-medium">${employee.hourlyRate.toFixed(2)}/hr</p>
+                <p className="font-medium">${Number(employee.hourlyRate).toFixed(2)}/hr</p>
               </div>
             </div>
 
