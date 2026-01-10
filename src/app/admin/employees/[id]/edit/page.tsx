@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, use } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,8 @@ interface Employee {
   zipCode: string;
 }
 
-export default function EditEmployeePage({ params }: { params: { id: string } }) {
+export default function EditEmployeePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,11 +37,11 @@ export default function EditEmployeePage({ params }: { params: { id: string } })
 
   useEffect(() => {
     fetchEmployee();
-  }, [params.id]);
+  }, [id]);
 
   const fetchEmployee = async () => {
     try {
-      const response = await fetch(`/api/admin/employees/${params.id}`);
+      const response = await fetch(`/api/admin/employees/${id}`);
       if (!response.ok) throw new Error("Failed to fetch employee");
       
       const data = await response.json();
@@ -72,7 +73,7 @@ export default function EditEmployeePage({ params }: { params: { id: string } })
     };
 
     try {
-      const response = await fetch(`/api/admin/employees?id=${params.id}`, {
+      const response = await fetch(`/api/admin/employees?id=${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -83,7 +84,7 @@ export default function EditEmployeePage({ params }: { params: { id: string } })
         throw new Error(error.error || "Failed to update employee");
       }
 
-      router.push(`/admin/employees/${params.id}`);
+      router.push(`/admin/employees/${id}`);
       router.refresh();
     } catch (err: any) {
       setError(err.message);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,8 @@ interface Client {
   medications?: string;
 }
 
-export default function ClientDetailPage({ params }: { params: { id: string } }) {
+export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,11 +40,11 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
   useEffect(() => {
     fetchClient();
-  }, [params.id]);
+  }, [id]);
 
   const fetchClient = async () => {
     try {
-      const response = await fetch(`/api/admin/clients/${params.id}`);
+      const response = await fetch(`/api/admin/clients/${id}`);
       if (!response.ok) throw new Error("Failed to fetch client");
       
       const data = await response.json();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, use } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,8 @@ interface Client {
   medications?: string;
 }
 
-export default function EditClientPage({ params }: { params: { id: string } }) {
+export default function EditClientPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,11 +43,11 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     fetchClient();
-  }, [params.id]);
+  }, [id]);
 
   const fetchClient = async () => {
     try {
-      const response = await fetch(`/api/admin/clients/${params.id}`);
+      const response = await fetch(`/api/admin/clients/${id}`);
       if (!response.ok) throw new Error("Failed to fetch client");
       
       const data = await response.json();
@@ -85,7 +86,7 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
     };
 
     try {
-      const response = await fetch(`/api/admin/clients?id=${params.id}`, {
+      const response = await fetch(`/api/admin/clients?id=${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -96,7 +97,7 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
         throw new Error(error.error || "Failed to update client");
       }
 
-      router.push(`/admin/clients/${params.id}`);
+      router.push(`/admin/clients/${id}`);
       router.refresh();
     } catch (err: any) {
       setError(err.message);
