@@ -115,6 +115,117 @@ async function main() {
     createdUsers[key] = user;
   }
 
+  // Create Employee records for test caregiver and nurse users
+  console.log("\n👷 Creating Employee records for test users...");
+  
+  // Create employee record for caregiver test user
+  if (createdUsers.caregiver) {
+    const existingCaregiverEmployee = await prisma.employee.findUnique({
+      where: { userId: createdUsers.caregiver.id },
+    });
+    if (!existingCaregiverEmployee) {
+      await prisma.employee.create({
+        data: {
+          userId: createdUsers.caregiver.id,
+          employeeNumber: `EMP-CAREGIVER-01`,
+          type: "CNA",
+          hireDate: new Date("2024-01-01"),
+          dateOfBirth: new Date("1990-06-15"),
+          hourlyRate: 25.00,
+          address: "123 Test Caregiver St",
+          city: "Springfield",
+          state: "IL",
+          zipCode: "62701",
+        },
+      });
+      console.log(`✓ Created Employee record for test caregiver: ${createdUsers.caregiver.email}`);
+    } else {
+      console.log(`✓ Employee record for test caregiver already exists`);
+    }
+  }
+
+  // Create employee record for nurse test user
+  if (createdUsers.nurse) {
+    const existingNurseEmployee = await prisma.employee.findUnique({
+      where: { userId: createdUsers.nurse.id },
+    });
+    if (!existingNurseEmployee) {
+      await prisma.employee.create({
+        data: {
+          userId: createdUsers.nurse.id,
+          employeeNumber: `EMP-NURSE-01`,
+          type: "RN",
+          hireDate: new Date("2023-06-01"),
+          dateOfBirth: new Date("1985-09-20"),
+          hourlyRate: 45.00,
+          address: "456 Test Nurse Ave",
+          city: "Springfield",
+          state: "IL",
+          zipCode: "62702",
+        },
+      });
+      console.log(`✓ Created Employee record for test nurse: ${createdUsers.nurse.email}`);
+    } else {
+      console.log(`✓ Employee record for test nurse already exists`);
+    }
+  }
+
+  // Create Client record for test client user
+  if (createdUsers.client) {
+    const existingClientRecord = await prisma.client.findUnique({
+      where: { userId: createdUsers.client.id },
+    });
+    if (!existingClientRecord) {
+      await prisma.client.create({
+        data: {
+          userId: createdUsers.client.id,
+          clientNumber: `CLT-TEST-001`,
+          dateOfBirth: new Date("1955-03-20"),
+          address: "789 Test Client Rd",
+          city: "Springfield",
+          state: "IL",
+          zipCode: "62703",
+          primaryPhone: "(555) 111-2222",
+          emergencyContact: "Family Member",
+          emergencyPhone: "(555) 333-4444",
+          emergencyRelation: "Spouse",
+          payerType: "PRIVATE_PAY",
+        },
+      });
+      console.log(`✓ Created Client record for test client: ${createdUsers.client.email}`);
+    } else {
+      console.log(`✓ Client record for test client already exists`);
+    }
+  }
+
+  // Create Client record for test family member
+  if (createdUsers.family) {
+    const existingFamilyClientRecord = await prisma.client.findUnique({
+      where: { userId: createdUsers.family.id },
+    });
+    if (!existingFamilyClientRecord) {
+      await prisma.client.create({
+        data: {
+          userId: createdUsers.family.id,
+          clientNumber: `CLT-TEST-002`,
+          dateOfBirth: new Date("1960-07-10"),
+          address: "321 Test Family Ln",
+          city: "Springfield",
+          state: "IL",
+          zipCode: "62704",
+          primaryPhone: "(555) 555-6666",
+          emergencyContact: "Another Family Member",
+          emergencyPhone: "(555) 777-8888",
+          emergencyRelation: "Child",
+          payerType: "PRIVATE_PAY",
+        },
+      });
+      console.log(`✓ Created Client record for test family member: ${createdUsers.family.email}`);
+    } else {
+      console.log(`✓ Client record for test family member already exists`);
+    }
+  }
+
   // Create sample clients
   console.log("\n📋 Creating sample clients...");
   
